@@ -29,3 +29,14 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:7px 5px;b
 .pbox b{display:block;font-size:28px;font-weight:800;margin:2px 0}.pbox i{font-style:normal;font-size:12px;color:var(--mu)}.pbox.e{border-color:#2c5aa8}.pbox.e b{color:#7fb0ff}.pbox.s{border-color:#7a2b2b}.pbox.s b{color:var(--r)}.pbox.t{border-color:#1f6b3d}.pbox.t b{color:var(--g)}
 .pinfo{margin:10px 0 4px;font-size:14px}.pwhy{color:var(--mu);font-size:13px}
 @media(max-width:600px){.pgrid{grid-template-columns:1fr}.pbox b{font-size:30px}}
+
+.now{border-radius:16px;padding:18px;margin:4px 0 12px;background:var(--pan);border:2px solid var(--bd)}.now small{display:block;color:var(--mu);font-weight:700;letter-spacing:1px;font-size:11px;margin-bottom:6px}
+.now b{display:block;font-size:22px;line-height:1.3}.now b i{font-style:normal}.now span{display:block;color:var(--mu);margin-top:8px;font-size:14px}.now.buy{border-color:#1f6b3d}.now.sell{border-color:#7a2b2b}.now.stop{border-color:var(--r);background:#2a1215}.now.wait b{color:var(--a)}
+.be{color:#7fb0ff}.tfpick{display:flex;align-items:center;gap:8px;margin:8px 0;color:var(--mu);font-size:14px;flex-wrap:wrap}
+.money{font-size:20px;font-weight:800;margin:0 0 10px}.money small{font-size:12px;color:var(--mu);font-weight:400}
+.pbtns{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:10px}.pbtns button{margin:0;padding:14px;font-size:15px}details summary{cursor:pointer;color:var(--tx);margin:6px 0}
+.help{background:var(--pan2);border:1px solid var(--bd);color:var(--mu);border-radius:50%;width:24px;height:24px;font-size:13px;font-weight:700;cursor:pointer;padding:0;vertical-align:middle}
+.morebtns{display:grid;gap:10px}.morebtns button{text-align:left;background:var(--pan);border:1px solid var(--bd);color:var(--tx);border-radius:14px;padding:18px;font-size:18px;font-weight:700;cursor:pointer}.morebtns small{display:block;color:var(--mu);font-size:13px;font-weight:400;margin-top:4px}
+.back{margin-bottom:8px}nav button{font-size:15px;padding:14px 8px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:20;padding:16px}.modal[hidden]{display:none}.mbox{background:var(--pan);border:1px solid var(--bd);border-radius:18px;padding:22px;max-width:440px;width:100%}.mbox h2{margin:0 0 10px;font-size:21px}.mbox p{color:#c8d0e0;font-size:15px}
+.mbtns{display:flex;gap:8px;margin-top:14px}.mbtns button{flex:1;margin:0}

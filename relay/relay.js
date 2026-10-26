@@ -1,7 +1,7 @@
 // Strat Master P.A local relay (PC only). READ-ONLY: serves the app from GitHub Pages and fetches delayed Yahoo candles
 // so the desktop gets fresher charts. No broker connection, no orders.
 const http = require('http'), https = require('https');
-const OK = /^(MES|MNQ|MGC)=F$/, TF = { '5m': '5d', '15m': '1mo', '60m': '3mo', '1d': '1y' };
+const OK = /^(MES|MNQ|MGC)=F$/, TF = { '5m': '5d', '15m': '1mo', '30m': '1mo', '60m': '3mo', '1d': '1y' };
 const get = (url, res, type) => https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, r => {
   res.statusCode = r.statusCode; res.setHeader('Content-Type', type || r.headers['content-type'] || 'application/octet-stream'); res.setHeader('Cache-Control', 'no-cache'); r.pipe(res);
 }).on('error', () => { res.statusCode = 502; res.end('err'); });

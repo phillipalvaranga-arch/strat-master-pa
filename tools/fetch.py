@@ -1,7 +1,7 @@
 # Read-only market data sync: pulls delayed futures candles from Yahoo Finance into data/*.json. Never trades.
 import json, os, time, urllib.request
 SYMS = {"MES": "MES=F", "MNQ": "MNQ=F", "MGC": "MGC=F"}
-TFS = {"5m": "5d", "15m": "1mo", "60m": "3mo", "1d": "1y"}
+TFS = {"5m": "5d", "15m": "1mo", "30m": "1mo", "60m": "3mo", "1d": "1y"}
 os.makedirs("data", exist_ok=True)
 meta = {"updated": int(time.time()), "source": "Yahoo Finance (CME delayed)", "files": {}}
 for s, y in SYMS.items():

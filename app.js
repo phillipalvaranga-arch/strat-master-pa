@@ -1,7 +1,7 @@
 // Strat Master P.A — signal-only. No broker connection, no order placement anywhere in this code.
-const $ = s => document.querySelector(s), SYMS = ['MES', 'MNQ', 'MGC'], TFS = ['5m', '15m', '60m', '1d'], TFS_S = { '5m': 300, '15m': 900, '60m': 3600, '1d': 86400 };
+const $ = s => document.querySelector(s), SYMS = ['MES', 'MNQ', 'MGC'], TFS = ['5m', '15m', '30m', '60m', '1d'], TFS_S = { '5m': 300, '15m': 900, '30m': 1800, '60m': 3600, '1d': 86400 };
 const RAW = 'https://raw.githubusercontent.com/phillipalvaranga-arch/strat-master-pa/data/', RELAY = '';
-const st = JSON.parse(localStorage.smpa || '{}'); const S = Object.assign({ sym: 'MES', tf: '5m', minRR: 1.5, daily: 300, minConf: 60, sound: true, notif: false, log: [], seen: {} }, st);
+const st = JSON.parse(localStorage.smpa || '{}'); const S = Object.assign({ sym: 'MES', tf: '5m', minRR: 1.5, daily: 300, minConf: 55, sound: true, notif: false, log: [], seen: {} }, st);
 const save = () => localStorage.smpa = JSON.stringify(S);
 const CT = { timeZone: 'America/Chicago' };
 const fmtT = t => new Date(t * 1000).toLocaleString('en-US', { ...CT, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
@@ -22,7 +22,7 @@ async function load(sym, tf) {
   feed = { src, age: bars.length ? Math.round((now - bars[bars.length - 1].t) / 60) : 0 };
   return cache[sym + tf] = { bars, closed };
 }
-const htfOf = tf => ({ '5m': '60m', '15m': '60m', '60m': '1d', '1d': null })[tf];
+const htfOf = tf => ({ '5m': '30m', '15m': '60m', '30m': '60m', '60m': '1d', '1d': null })[tf];
 async function scan(sym, tf) {
   const d = await load(sym, tf), h = htfOf(tf) ? (await load(sym, htfOf(tf))).closed : null;
   const B = d.closed, i = B.length - 1; if (i < 3) return { sigs: [], d };
@@ -49,26 +49,29 @@ async function drawChart() {
 }
 function showSig(s) {
   lines.forEach(l => cs.removePriceLine(l)); lines = []; cs.setMarkers([]);
-  if (!s) { $('#sigcard').innerHTML = '<div class="note card">No qualifying setup on the last closed bar for this chart. Scanner rechecks every minute.</div>'; return; }
+  if (!s) { $('#sigcard').innerHTML = '<div class="now wait"><b>No good trade on ' + S.sym + ' ' + S.tf + ' right now — wait.</b><span>The app checks again every minute.</span></div>'; return; }
   const ln = (p, c, t) => lines.push(cs.createPriceLine({ price: p, color: c, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: t }));
   ln(s.entry, '#3b82f6', 'ENTRY ' + s.entry.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.stop, '#ef4444', 'STOP ' + s.stop.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.target, '#22c55e', 'TARGET ' + s.target.toFixed(s.sym === 'MGC' ? 1 : 2));
   cs.setMarkers([{ time: ctOff(s.t), position: s.dir === 'LONG' ? 'belowBar' : 'aboveBar', color: s.dir === 'LONG' ? '#22c55e' : '#ef4444', shape: s.dir === 'LONG' ? 'arrowUp' : 'arrowDown', text: s.setup }]);
-  $('#sigcard').innerHTML = '<div class="note" style="margin:0 0 4px">Latest trade plan</div>' + sigHTML(s); bindPlans($('#sigcard'), [s]);
+  $('#sigcard').innerHTML = '<div class="note" style="margin:0 0 4px">Trade idea for this chart</div>' + sigHTML(s); bindPlans($('#sigcard'), [s]);
 }
 const fp = (x, sym) => x.toLocaleString('en-US', { minimumFractionDigits: sym === 'MGC' ? 1 : 2, maximumFractionDigits: sym === 'MGC' ? 1 : 2 });
 function sigHTML(s, k) {
   const sp = Strat.SPEC[s.sym], L = s.dir === 'LONG', riskPts = Math.abs(s.entry - s.stop), rewPts = Math.abs(s.target - s.entry);
-  const tk = x => Math.round(x / sp.tick), mx = Math.min(S.daily / 2, 150), z = Strat.size(mx, s, s.sym), c = s.conf >= 70 ? 'g' : s.conf >= 55 ? 'a' : 'r';
-  return `<div class="plan ${L ? 'L' : 'S'}" data-k="${k ?? ''}"><div class="ptop"><span class="pdir ${L ? 'g' : 'r'}">${L ? 'BUY · LONG' : 'SELL · SHORT'} ${s.sym}</span><span class="conf ${c}">${s.conf}% confidence</span></div>
-  <div class="psub">TRADE PLAN · ${s.setup} · ${S.tf} · signal bar ${fmtT(s.t)}</div>
-  <div class="pgrid"><div class="pbox e"><span>ENTRY</span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy stop' : 'Sell stop'} at ${fp(s.entry, s.sym)}</i></div>
-  <div class="pbox s"><span>STOP LOSS</span><b>${fp(s.stop, s.sym)}</b><i>${tk(riskPts)} ticks · ${riskPts.toFixed(2)} pts · −${money(riskPts * sp.pv)}/contract</i></div>
-  <div class="pbox t"><span>TAKE PROFIT</span><b>${fp(s.target, s.sym)}</b><i>${tk(rewPts)} ticks · ${rewPts.toFixed(2)} pts · +${money(rewPts * sp.pv)}/contract</i></div></div>
-  <div class="pinfo"><b>${s.rr}:1</b> reward:risk · <b>${z.contracts}</b> contract(s) at ${money(mx)} max risk (risk ${money(z.contracts * riskPts * sp.pv)}, reward ${money(z.contracts * rewPts * sp.pv)})</div>
-  <div class="pwhy">How to place it yourself: ${L ? 'Buy stop' : 'Sell stop'} order at <b>${fp(s.entry, s.sym)}</b>, stop loss at <b class="r">${fp(s.stop, s.sym)}</b>, take-profit limit at <b class="g">${fp(s.target, s.sym)}</b>. Only valid if price reaches the entry on the next ${S.tf} bar; otherwise cancel. Why: ${s.why}.</div>
-  <button class="primary logbtn">Log this trade</button></div>`;
+  const tk = x => Math.round(x / sp.tick), mx = Math.min(S.daily / 2, 150), z = Strat.size(mx, s, s.sym), rt = rating(s.conf), n1 = Math.max(1, z.contracts);
+  return `<div class="plan ${L ? 'L' : 'S'}" data-k="${k ?? ''}"><div class="ptop"><span class="pdir ${L ? 'g' : 'r'}">${L ? 'BUY · LONG' : 'SELL · SHORT'} ${s.sym}</span><span class="conf ${rt[1]}">${rt[0]} idea</span></div>
+  <div class="psub">${Strat.SPEC[s.sym].name} · ${S.tf} chart · ${fmtT(s.t)}</div>
+  <div class="money"><span class="g">Win ${money(rewPts * sp.pv)}</span> / <span class="r">Risk ${money(riskPts * sp.pv)}</span> <small>per contract</small></div>
+  <div class="pgrid"><div class="pbox e"><span>1 · GET IN AT</span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy stop' : 'Sell stop'} at ${fp(s.entry, s.sym)}</i></div>
+  <div class="pbox s"><span>2 · STOP LOSS (get out if wrong)</span><b>${fp(s.stop, s.sym)}</b><i>${tk(riskPts)} ticks · ${riskPts.toFixed(2)} pts · −${money(riskPts * sp.pv)}/contract</i></div>
+  <div class="pbox t"><span>3 · TAKE PROFIT</span><b>${fp(s.target, s.sym)}</b><i>${tk(rewPts)} ticks · ${rewPts.toFixed(2)} pts · +${money(rewPts * sp.pv)}/contract</i></div></div>
+  <div class="pinfo">Suggested size: <b>${z.contracts}</b> contract(s) → could win <b class="g">${money(z.contracts * rewPts * sp.pv)}</b> or lose <b class="r">${money(z.contracts * riskPts * sp.pv)}</b> (keeps risk under ${money(mx)})</div>
+  <details class="pwhy"><summary>How to enter it & why</summary>On your trading platform: ${L ? 'Buy stop' : 'Sell stop'} order at <b>${fp(s.entry, s.sym)}</b>, stop loss at <b class="r">${fp(s.stop, s.sym)}</b>, take-profit limit at <b class="g">${fp(s.target, s.sym)}</b>. Only valid if price reaches the entry on the next ${S.tf} bar; otherwise cancel. <br>Why: ${plain(s)}<br><small>Pattern: ${s.setup} · Can win ${s.rr}× the risk · Score ${s.conf}/100</small></details>
+  <div class="pbtns"><button class="ghost chartbtn">📈 See on chart</button><button class="primary logbtn">📝 I took this trade</button></div></div>`;
 }
-function bindPlans(root, list) { root.querySelectorAll('.plan').forEach((el, i) => { el.querySelector('.logbtn').onclick = ev => { ev.stopPropagation(); prefillLog(list[i]); }; }); }
+const rating = c => c >= 70 ? ['Strong', 'g'] : c >= 55 ? ['Okay', 'a'] : ['Weak', 'r'];
+const plain = s => (s.dir === 'LONG' ? 'Price paused, and a move above ' + fp(s.entry, s.sym) + ' would show buyers taking over.' : 'Price paused, and a move below ' + fp(s.entry, s.sym) + ' would show sellers taking over.') + (/agrees/.test(s.why) ? ' The bigger trend agrees (good).' : /disagrees/.test(s.why) ? ' The bigger trend points the other way (be careful).' : '') + ' Take profit is at an earlier price level.';
+function bindPlans(root, list) { root.querySelectorAll('.plan').forEach((el, i) => { el.querySelector('.logbtn').onclick = ev => { ev.stopPropagation(); prefillLog(list[i]); }; const cb = el.querySelector('.chartbtn'); if (cb) cb.onclick = ev => { ev.stopPropagation(); active = list[i]; S.sym = active.sym; save(); tab('chart'); renderSegs(); drawChart(); }; }); }
 function prefillLog(s) { const f = $('#lf'), z = Strat.size(Math.min(S.daily / 2, 150), s, s.sym); f.sym.value = s.sym; f.dir.value = s.dir; f.qty.value = Math.max(1, z.contracts); f.entry.value = s.entry; f.exit.value = '';
   f.note.value = `${s.setup} ${s.sym} ${S.tf} · stop ${fp(s.stop, s.sym)} · target ${fp(s.target, s.sym)} · ${s.rr}:1`; tab('log'); f.exit.focus(); toast('Trade plan copied to the log — add your exit when done'); }
 function updFeed() {
@@ -80,8 +83,12 @@ function updFeed() {
 async function scanAll() {
   const all = []; for (const s of SYMS) { try { all.push(...(await scan(s, S.tf)).sigs); } catch (e) { console.warn(e); } }
   all.sort((a, b) => b.conf - a.conf);
-  $('#siglist').innerHTML = all.length ? all.map((x, k) => sigHTML(x, k)).join('') : '<div class="card note">No setups with ≥' + S.minRR + ':1 reward:risk right now. That is normal — waiting is a position.</div>';
-  bindPlans($('#siglist'), all); $('#siglist').querySelectorAll('.plan').forEach((el, k) => el.onclick = () => { active = all[k]; S.sym = active.sym; save(); tab('chart'); renderSegs(); drawChart(); });
+  $('#siglist').innerHTML = all.map((x, k) => sigHTML(x, k)).join(''); bindPlans($('#siglist'), all);
+  const lim = S.daily + Math.min(0, todayPnl()) <= 0, b = all[0];
+  $('#now').className = 'now ' + (lim ? 'stop' : b ? (b.dir === 'LONG' ? 'buy' : 'sell') : 'wait');
+  $('#now').innerHTML = lim ? '<b>You hit today\'s money limit — stop trading for today.</b><span>Come back tomorrow fresh.</span>'
+    : b ? `<small>WHAT TO DO NOW</small><b>Possible trade on ${b.sym}: ${b.dir === 'LONG' ? 'BUY' : 'SELL'} at <i class="be">${fp(b.entry, b.sym)}</i>, stop loss <i class="r">${fp(b.stop, b.sym)}</i>, take profit <i class="g">${fp(b.target, b.sym)}</i>.</b><span>${rating(b.conf)[0]} idea · Win ${money(Math.abs(b.target - b.entry) * Strat.SPEC[b.sym].pv)} / Risk ${money(Math.abs(b.entry - b.stop) * Strat.SPEC[b.sym].pv)} per contract${inSession() ? '' : ' · Outside your 8:30 AM–2:45 PM CT hours'}. Details below.</span>`
+    : `<small>WHAT TO DO NOW</small><b>No good trade right now — wait.</b><span>Checked MES, MNQ and MGC on the ${S.tf} chart. Checking again every minute${inSession() ? '' : ' · Outside your 8:30 AM–2:45 PM CT hours'}.</span>`;
   const sess = inSession();
   for (const s of all) { const k = `${s.sym}${S.tf}${s.t}${s.dir}`; if (S.seen[k] || s.conf < S.minConf) continue; S.seen[k] = 1; if (sess) alertSig(s); }
   const ks = Object.keys(S.seen); if (ks.length > 300) ks.slice(0, 100).forEach(k => delete S.seen[k]); save(); updFeed();
@@ -106,7 +113,7 @@ function renderRisk() {
   const p = todayPnl(), used = Math.max(0, -p), pct = Math.min(100, used / S.daily * 100), left = S.daily - used;
   $('#riskbox').innerHTML = `<div class="statg"><div><span>Today P&L</span><b class="${p >= 0 ? 'g' : 'r'}">${money(p)}</b></div><div><span>Loss limit</span><b>${money(S.daily)}</b></div><div><span>Room left</span><b class="${left > S.daily * .3 ? 'g' : 'r'}">${money(Math.max(0, left))}</b></div></div>
   <div class="meter"><i style="width:${pct}%;background:${pct < 50 ? '#22c55e' : pct < 85 ? '#f5b942' : '#ef4444'}"></i></div>${left <= 0 ? '<b class="r">Daily stop hit — done trading for today.</b>' : `<span class="note">Hours: 8:30 AM–2:45 PM CT weekdays. ${inSession() ? 'Session open.' : 'Outside your trading hours.'}</span>`}`;
-  const s = $('#sess'); s.textContent = left <= 0 ? 'DAILY STOP HIT' : inSession() ? 'Session open' : 'Session closed'; s.className = 'pill ' + (left <= 0 ? 'r' : inSession() ? 'g' : 'a');
+  $('#riskmini').innerHTML = `<div class="meter"><i style="width:${pct}%;background:${pct < 50 ? '#22c55e' : pct < 85 ? '#f5b942' : '#ef4444'}"></i></div>Today: <b class="${p >= 0 ? 'g' : 'r'}">${money(p)}</b> · You can still lose <b>${money(Math.max(0, left))}</b> before your ${money(S.daily)} daily stop.`; const s = $('#sess'); s.textContent = left <= 0 ? 'DAILY STOP HIT' : inSession() ? 'Session open' : 'Session closed'; s.className = 'pill ' + (left <= 0 ? 'r' : inSession() ? 'g' : 'a');
 }
 function calcSize() {
   const sym = $('#zsym').value, e = +$('#zent').value, s = +$('#zstp').value, r = +$('#zrisk').value; if (!e || !s || e === s) { $('#zout').innerHTML = '<span class="note">Enter entry and stop.</span>'; return; }
@@ -130,17 +137,18 @@ $('#lf').onsubmit = e => {
 $('#exportlog').onclick = () => { const c = 'time_ct,symbol,side,qty,entry,exit,pnl,note\n' + S.log.map(x => [new Date(x.ts).toLocaleString('en-US', CT).replace(',', ''), x.sym, x.dir, x.qty, x.entry, x.exit ?? '', x.pnl ?? '', '"' + (x.note || '').replace(/"/g, "'") + '"'].join(',')).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], { type: 'text/csv' })); a.download = 'strat-master-trades.csv'; a.click(); };
 
 // ---- ui
-function tab(t) { document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'signals') { scanAll(); track(); } if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
+function tab(t) { const navT = ['size', 'st', 'signals', 'settings'].includes(t) ? 'more' : t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === navT)); scrollTo(0, 0); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'home') scanAll(); if (t === 'signals') track(); if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => tab(b.dataset.t));
 function renderSegs() {
   $('#syms').innerHTML = SYMS.map(s => `<button class="${s === S.sym ? 'on' : ''}">${s}</button>`).join(''); $('#tfs').innerHTML = TFS.map(s => `<button class="${s === S.tf ? 'on' : ''}">${s}</button>`).join('');
   $('#syms').querySelectorAll('button').forEach(b => b.onclick = () => { S.sym = b.textContent; active = null; save(); renderSegs(); drawChart(); });
+  $('#tfs2').innerHTML = $('#tfs').innerHTML; $('#tfs2').querySelectorAll('button').forEach(b => b.onclick = () => { S.tf = b.textContent; active = null; save(); renderSegs(); drawChart(); scanAll(); });
   $('#tfs').querySelectorAll('button').forEach(b => b.onclick = () => { S.tf = b.textContent; active = null; save(); renderSegs(); drawChart(); });
 }
 $('#refresh').onclick = () => { relayOK = null; drawChart(); };
 ['zsym', 'zent', 'zstp', 'zrisk'].forEach(i => $('#' + i).oninput = calcSize);
 const bindSet = (id, k, cb = x => x) => { const el = $('#' + id); if (el.type === 'checkbox') el.checked = S[k]; else el.value = S[k]; el.onchange = () => { S[k] = el.type === 'checkbox' ? el.checked : cb(el.value); save(); $('#rrlbl').textContent = S.minRR; renderRisk(); if (k === 'minRR') drawChart(); }; };
-bindSet('sminrr', 'minRR', Number); bindSet('sdaily', 'daily', Number); bindSet('sminconf', 'minConf', Number); bindSet('ssound', 'sound');
+bindSet('sminrr', 'minRR', Number); bindSet('sdaily', 'daily', Number); if (![70, 55, 0].includes(+S.minConf)) S.minConf = 55; bindSet('sminconf', 'minConf', Number); bindSet('ssound', 'sound');
 bindSet('snotif', 'notif'); $('#snotif').addEventListener('change', e => { if (e.target.checked && 'Notification' in window) Notification.requestPermission().then(p => { if (p !== 'granted') { toast('Notifications blocked by the browser'); S.notif = false; e.target.checked = false; save(); } }); });
 $('#rrlbl').textContent = S.minRR;
 // ---- Strat Trader link: GET-only reads of /api/journal, /api/suggestions. Never calls any POST/order endpoint.
@@ -182,4 +190,19 @@ async function loadST() {
 setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('en-US', { ...CT, hour: 'numeric', minute: '2-digit' }) + ' CT'; }, 1000);
 initChart(); renderSegs(); drawChart().catch(e => toast('Data load failed: ' + e.message)); renderLog(); renderRisk();
 setInterval(() => { drawChart().catch(() => { }); scanAll(); renderRisk(); }, 60000); setTimeout(scanAll, 3000);
+document.querySelectorAll('.morebtns [data-go]').forEach(b => b.onclick = () => tab(b.dataset.go)); document.querySelectorAll('.back').forEach(b => b.onclick = () => tab('more'));
+const HELP = { tf: 'This is how long each candle on the chart lasts. 5m = 5 minutes. Shorter = more ideas but more noise. 30m and 60m give fewer, slower ideas.',
+  risk: 'Your daily stop is the most you allow yourself to lose in one day (default $300). When it is used up, stop trading until tomorrow. Log your trades so this stays accurate.',
+  size: 'Type where you will get in and where your stop loss goes. The app tells you how many contracts keep your loss under the amount you choose.',
+  log: 'After a trade, write down where you got in and out. The app works out your profit or loss, how often you win, and keeps your daily limit up to date.',
+  track: 'This tests the same kind of trade ideas on recent price history. A negative number means they would have lost money if you took every one, so be picky and favor Strong ideas.' };
+document.querySelectorAll('.help').forEach(b => b.onclick = ev => { ev.stopPropagation(); showModal([HELP[b.dataset.h]]); });
+const GUIDE = ['<h2>Welcome to Strat Master P.A 👋</h2><p>This app <b>suggests</b> trades on MES, MNQ and MGC. It never trades for you — <b>you</b> place every trade yourself on your platform.</p>',
+  '<h2>Home tells you what to do</h2><p>The top box says in one sentence: <b>wait</b>, or a possible trade with exact prices.</p><p><span class="be">Blue = get in</span> · <span class="r">Red = stop loss</span> · <span class="g">Green = take profit</span></p>',
+  '<h2>Every idea has a plan</h2><p>1 · <b class="be">Get in at</b> — 2 · <b class="r">Stop loss</b> — 3 · <b class="g">Take profit</b>.</p><p>Ideas are rated <b class="g">Strong</b>, <b class="a">Okay</b> or <b class="r">Weak</b>, and show what you could <b class="g">win</b> vs <b class="r">risk</b>.</p>',
+  '<h2>Stay safe</h2><p>Prices are about <b>10–25 minutes delayed</b> — always check the live price on your platform first.</p><p>After each trade tap <b>📝 I took this trade</b> so your results and $300 daily stop stay up to date. Tap <b>?</b> anywhere for help.</p>'];
+function showModal(pages, done) { let i = 0; const m = $('#modal'); const draw = () => { $('#mtxt').innerHTML = pages[i]; $('#mnext').textContent = i < pages.length - 1 ? 'Next' : 'Got it'; $('#mskip').hidden = pages.length < 2 || i === pages.length - 1; }; draw(); m.hidden = false;
+  $('#mnext').onclick = () => { if (++i < pages.length) draw(); else { m.hidden = true; done && done(); } }; $('#mskip').onclick = () => { m.hidden = true; done && done(); }; }
+$('#guideagain').onclick = () => showModal(GUIDE);
+if (!S.guided) showModal(GUIDE, () => { S.guided = true; save(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

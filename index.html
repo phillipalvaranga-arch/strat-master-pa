@@ -3,28 +3,40 @@
 <body>
 <header><div class="brand"><img src="icons/icon-192.png" alt=""><div><b>Strat Master P.A</b><small>Signals only · you place every trade</small></div></div>
 <div class="hdr-r"><span id="clock"></span><span id="sess" class="pill"></span><span id="feed" class="pill"></span></div></header>
-<nav id="tabs"><button data-t="chart" class="on">Chart</button><button data-t="signals">Signals</button><button data-t="size">Size</button><button data-t="log">Trade Log</button><button data-t="st">Strat Trader</button><button data-t="settings">Settings</button></nav>
+<nav id="tabs"><button data-t="home" class="on">🏠 Home</button><button data-t="chart">📈 Chart</button><button data-t="log">📝 My Trades</button><button data-t="more">☰ More</button></nav>
 <main>
-<section id="chart" class="tab on">
+<section id="home" class="tab on">
+ <div id="now" class="now"></div>
+ <div class="tfpick"><span>Checking every</span><div class="seg" id="tfs2"></div><button class="help" data-h="tf">?</button></div>
+ <div id="siglist"></div>
+ <div class="card"><h3>Today's money limit <button class="help" data-h="risk">?</button></h3><div id="riskmini"></div></div>
+</section>
+<section id="more" class="tab"><div class="morebtns">
+ <button data-go="size">🧮 How many contracts?<small>Size calculator and today's limit</small></button>
+ <button data-go="st">🔗 Strat Trader<small>Your TradingView alerts and results</small></button>
+ <button data-go="signals">📊 Track record<small>How these trade ideas did lately</small></button>
+ <button data-go="settings">⚙️ Settings<small>Alerts, money limit, link</small></button>
+ <button id="guideagain">❓ Show the quick guide again<small>4 short screens</small></button></div></section>
+<section id="chart" class="tab">
  <div class="bar"><div class="seg" id="syms"></div><div class="seg" id="tfs"></div><button id="refresh" class="ghost">↻</button></div>
  <div id="sigcard"></div><div id="quote"></div><div id="chartbox"></div>
 </section>
-<section id="signals" class="tab"><div class="note">Scanner checks MES, MNQ, MGC on the selected timeframe. Only setups with a target at least <b id="rrlbl">1.5</b>:1 reward:risk are shown. Tap one to see it on the chart.</div><div id="siglist"></div><h3>How these setups did on recent history</h3><div id="track" class="note"></div></section>
-<section id="size" class="tab"><div class="card"><h3>Position size</h3>
+<section id="signals" class="tab"><button class="back ghost">‹ Back</button><h3>How these trade ideas did lately <button class="help" data-h="track">?</button></h3><span id="rrlbl" hidden></span><div id="track" class="note"></div></section>
+<section id="size" class="tab"><button class="back ghost">‹ Back</button><div class="card"><h3>How many contracts? <button class="help" data-h="size">?</button></h3>
  <label>Contract<select id="zsym"><option>MES</option><option>MNQ</option><option>MGC</option></select></label>
  <label>Entry<input id="zent" type="number" step="any" inputmode="decimal"></label><label>Stop<input id="zstp" type="number" step="any" inputmode="decimal"></label>
  <label>Max $ risk this trade<input id="zrisk" type="number" value="150" inputmode="decimal"></label><div id="zout" class="big"></div></div>
  <div class="card"><h3>Today's risk</h3><div id="riskbox"></div></div></section>
-<section id="log" class="tab"><div class="card"><h3>Record a trade you took</h3><form id="lf">
+<section id="log" class="tab"><div class="card"><h3>Write down a trade you took <button class="help" data-h="log">?</button></h3><form id="lf">
  <div class="row"><label>Contract<select name="sym"><option>MES</option><option>MNQ</option><option>MGC</option></select></label><label>Side<select name="dir"><option>LONG</option><option>SHORT</option></select></label><label>Qty<input name="qty" type="number" value="1" min="1"></label></div>
  <div class="row"><label>Entry<input name="entry" type="number" step="any" required></label><label>Exit<input name="exit" type="number" step="any"></label><label>Fees $<input name="fees" type="number" step="any" value="1.24"></label></div>
  <label>Setup / notes<input name="note" placeholder="e.g. 2-1-2 MES 5m from Strat Master P.A"></label><button class="primary">Save trade</button></form></div>
  <div class="card"><h3>Stats</h3><div id="stats"></div></div><div id="loglist"></div><button id="exportlog" class="ghost">Export CSV</button></section>
-<section id="st" class="tab"><div id="stconn" class="note"></div><div class="card"><h3>Performance analysis</h3><div id="stana"></div></div><div class="card"><h3>Suggestions to improve</h3><div id="stsug"></div></div><div class="card"><h3>Recent Strat Trader alerts</h3><div id="stalerts"></div></div></section>
-<section id="settings" class="tab"><div class="card">
- <label>Minimum reward:risk<select id="sminrr"><option>1.5</option><option>2</option><option>2.5</option><option>3</option></select></label>
+<section id="st" class="tab"><button class="back ghost">‹ Back</button><div id="stconn" class="note"></div><div class="card"><h3>Performance analysis</h3><div id="stana"></div></div><div class="card"><h3>Suggestions to improve</h3><div id="stsug"></div></div><div class="card"><h3>Recent Strat Trader alerts</h3><div id="stalerts"></div></div></section>
+<section id="settings" class="tab"><button class="back ghost">‹ Back</button><div class="card">
+ <label>Only show trades that can win at least … times the risk<select id="sminrr"><option>1.5</option><option>2</option><option>2.5</option><option>3</option></select></label>
  <label>Daily loss limit $<input id="sdaily" type="number" value="300"></label>
- <label>Minimum confidence to alert<input id="sminconf" type="number" value="60"></label>
+ <label>Alert me for<select id="sminconf"><option value="70">Strong ideas only</option><option value="55">Strong and Okay</option><option value="0">All ideas</option></select></label>
  <label class="chk"><input id="ssound" type="checkbox" checked> Sound on new signal</label>
  <label class="chk"><input id="snotif" type="checkbox"> Phone/desktop notification</label>
 <h3 style="margin-top:16px">Strat Trader link (read-only)</h3>
@@ -33,5 +45,5 @@
  <button id="sttest" class="ghost">Connect &amp; test</button>
  <p class="note">Strat Master P.A never connects to Apex, Topstep, Tradovate or TradingView accounts and cannot place orders. Data is delayed (see Feed pill). Confirm price on your trading platform before entering.</p></div></section>
 </main>
-<div id="toast"></div>
+<div id="toast"></div><div id="modal" class="modal" hidden><div class="mbox"><div id="mtxt"></div><div class="mbtns"><button id="mskip" class="ghost">Skip</button><button id="mnext" class="primary">Next</button></div></div></div>
 <script src="vendor/lwc.js"></script><script src="strat.js"></script><script src="app.js"></script></body></html>
