@@ -2,7 +2,7 @@
 (function (root) {
   const SPEC = { MES: { pv: 5, tick: 0.25, name: 'Micro E-mini S&P 500' }, MNQ: { pv: 2, tick: 0.25, name: 'Micro E-mini Nasdaq-100' }, MGC: { pv: 10, tick: 0.1, name: 'Micro Gold' } };
   const typ = (b, p) => b.h > p.h && b.l < p.l ? 3 : b.h <= p.h && b.l >= p.l ? 1 : b.h > p.h ? '2u' : b.l < p.l ? '2d' : 1;
-  const rnd = (x, t) => Math.round(x / t) * t;
+  const rnd = (x, t) => +(Math.round(x / t) * t).toFixed(t < 0.25 ? 1 : 2);
   function atr(bars, n = 14) { let s = 0, k = 0; for (let i = Math.max(1, bars.length - n); i < bars.length; i++) { const b = bars[i], p = bars[i - 1]; s += Math.max(b.h - b.l, Math.abs(b.h - p.c), Math.abs(b.l - p.c)); k++; } return k ? s / k : 0; }
   // Find a structural target >= minRR away; returns {target, rr} or null.
   function findTarget(bars, i, dir, entry, risk, minRR, look = 60) {

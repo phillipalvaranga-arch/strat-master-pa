@@ -49,18 +49,28 @@ async function drawChart() {
 }
 function showSig(s) {
   lines.forEach(l => cs.removePriceLine(l)); lines = []; cs.setMarkers([]);
-  if (!s) { $('#sigcard').innerHTML = '<div class="note">No qualifying setup on the last closed bar for this chart. Scanner rechecks every minute.</div>'; return; }
+  if (!s) { $('#sigcard').innerHTML = '<div class="note card">No qualifying setup on the last closed bar for this chart. Scanner rechecks every minute.</div>'; return; }
   const ln = (p, c, t) => lines.push(cs.createPriceLine({ price: p, color: c, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: t }));
-  ln(s.entry, '#3b82f6', 'ENTRY'); ln(s.stop, '#ef4444', 'STOP'); ln(s.target, '#22c55e', 'TARGET');
+  ln(s.entry, '#3b82f6', 'ENTRY ' + s.entry.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.stop, '#ef4444', 'STOP ' + s.stop.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.target, '#22c55e', 'TARGET ' + s.target.toFixed(s.sym === 'MGC' ? 1 : 2));
   cs.setMarkers([{ time: ctOff(s.t), position: s.dir === 'LONG' ? 'belowBar' : 'aboveBar', color: s.dir === 'LONG' ? '#22c55e' : '#ef4444', shape: s.dir === 'LONG' ? 'arrowUp' : 'arrowDown', text: s.setup }]);
-  $('#sigcard').innerHTML = sigHTML(s);
+  $('#sigcard').innerHTML = '<div class="note" style="margin:0 0 4px">Latest trade plan</div>' + sigHTML(s); bindPlans($('#sigcard'), [s]);
 }
-function sigHTML(s) {
-  const z = Strat.size(Math.min(S.daily / 2, 150), s, s.sym), c = s.conf >= 70 ? 'g' : s.conf >= 55 ? 'a' : 'r';
-  return `<div class="sig ${s.dir[0] === 'L' ? 'L' : 'S'}" data-k="${s.sym}|${s.setup}|${s.dir}"><div class="top"><span class="${s.dir === 'LONG' ? 'g' : 'r'}">${s.dir} ${s.sym} · ${s.setup} · ${S.tf}</span><span class="conf ${c}">${s.conf}% confidence</span></div>
-  <div class="lv"><div><span>Entry (stop order)</span>${s.entry.toFixed(2)}</div><div><span>Stop</span><b class="r">${s.stop.toFixed(2)}</b></div><div><span>Target</span><b class="g">${s.target.toFixed(2)}</b></div><div><span>Reward:Risk</span>${s.rr}:1</div></div>
-  <div class="why">${s.why}. Risk ${money(z.perContract)} per contract · up to ${z.contracts} contract(s) at $150 risk. Signal bar ${fmtT(s.t)}. Only valid if price triggers on the next bar.</div></div>`;
+const fp = (x, sym) => x.toLocaleString('en-US', { minimumFractionDigits: sym === 'MGC' ? 1 : 2, maximumFractionDigits: sym === 'MGC' ? 1 : 2 });
+function sigHTML(s, k) {
+  const sp = Strat.SPEC[s.sym], L = s.dir === 'LONG', riskPts = Math.abs(s.entry - s.stop), rewPts = Math.abs(s.target - s.entry);
+  const tk = x => Math.round(x / sp.tick), mx = Math.min(S.daily / 2, 150), z = Strat.size(mx, s, s.sym), c = s.conf >= 70 ? 'g' : s.conf >= 55 ? 'a' : 'r';
+  return `<div class="plan ${L ? 'L' : 'S'}" data-k="${k ?? ''}"><div class="ptop"><span class="pdir ${L ? 'g' : 'r'}">${L ? 'BUY · LONG' : 'SELL · SHORT'} ${s.sym}</span><span class="conf ${c}">${s.conf}% confidence</span></div>
+  <div class="psub">TRADE PLAN · ${s.setup} · ${S.tf} · signal bar ${fmtT(s.t)}</div>
+  <div class="pgrid"><div class="pbox e"><span>ENTRY</span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy stop' : 'Sell stop'} at ${fp(s.entry, s.sym)}</i></div>
+  <div class="pbox s"><span>STOP LOSS</span><b>${fp(s.stop, s.sym)}</b><i>${tk(riskPts)} ticks · ${riskPts.toFixed(2)} pts · −${money(riskPts * sp.pv)}/contract</i></div>
+  <div class="pbox t"><span>TAKE PROFIT</span><b>${fp(s.target, s.sym)}</b><i>${tk(rewPts)} ticks · ${rewPts.toFixed(2)} pts · +${money(rewPts * sp.pv)}/contract</i></div></div>
+  <div class="pinfo"><b>${s.rr}:1</b> reward:risk · <b>${z.contracts}</b> contract(s) at ${money(mx)} max risk (risk ${money(z.contracts * riskPts * sp.pv)}, reward ${money(z.contracts * rewPts * sp.pv)})</div>
+  <div class="pwhy">How to place it yourself: ${L ? 'Buy stop' : 'Sell stop'} order at <b>${fp(s.entry, s.sym)}</b>, stop loss at <b class="r">${fp(s.stop, s.sym)}</b>, take-profit limit at <b class="g">${fp(s.target, s.sym)}</b>. Only valid if price reaches the entry on the next ${S.tf} bar; otherwise cancel. Why: ${s.why}.</div>
+  <button class="primary logbtn">Log this trade</button></div>`;
 }
+function bindPlans(root, list) { root.querySelectorAll('.plan').forEach((el, i) => { el.querySelector('.logbtn').onclick = ev => { ev.stopPropagation(); prefillLog(list[i]); }; }); }
+function prefillLog(s) { const f = $('#lf'), z = Strat.size(Math.min(S.daily / 2, 150), s, s.sym); f.sym.value = s.sym; f.dir.value = s.dir; f.qty.value = Math.max(1, z.contracts); f.entry.value = s.entry; f.exit.value = '';
+  f.note.value = `${s.setup} ${s.sym} ${S.tf} · stop ${fp(s.stop, s.sym)} · target ${fp(s.target, s.sym)} · ${s.rr}:1`; tab('log'); f.exit.focus(); toast('Trade plan copied to the log — add your exit when done'); }
 function updFeed() {
   const f = $('#feed'); f.textContent = feed.src.split('·')[0] + ' · ' + (feed.age < 120 ? feed.age + 'm old' : 'market closed / stale');
   f.className = 'pill ' + (feed.age <= 15 ? 'g' : feed.age <= 40 ? 'a' : 'r'); f.title = feed.src;
@@ -70,8 +80,8 @@ function updFeed() {
 async function scanAll() {
   const all = []; for (const s of SYMS) { try { all.push(...(await scan(s, S.tf)).sigs); } catch (e) { console.warn(e); } }
   all.sort((a, b) => b.conf - a.conf);
-  $('#siglist').innerHTML = all.length ? all.map(sigHTML).join('') : '<div class="card note">No setups with ≥' + S.minRR + ':1 reward:risk right now. That is normal — waiting is a position.</div>';
-  $('#siglist').querySelectorAll('.sig').forEach((el, k) => el.onclick = () => { active = all[k]; S.sym = active.sym; save(); tab('chart'); renderSegs(); drawChart(); });
+  $('#siglist').innerHTML = all.length ? all.map((x, k) => sigHTML(x, k)).join('') : '<div class="card note">No setups with ≥' + S.minRR + ':1 reward:risk right now. That is normal — waiting is a position.</div>';
+  bindPlans($('#siglist'), all); $('#siglist').querySelectorAll('.plan').forEach((el, k) => el.onclick = () => { active = all[k]; S.sym = active.sym; save(); tab('chart'); renderSegs(); drawChart(); });
   const sess = inSession();
   for (const s of all) { const k = `${s.sym}${S.tf}${s.t}${s.dir}`; if (S.seen[k] || s.conf < S.minConf) continue; S.seen[k] = 1; if (sess) alertSig(s); }
   const ks = Object.keys(S.seen); if (ks.length > 300) ks.slice(0, 100).forEach(k => delete S.seen[k]); save(); updFeed();
