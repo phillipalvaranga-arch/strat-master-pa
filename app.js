@@ -1,6 +1,6 @@
 // Strat Master P.A — signal-only. No broker connection, no order placement anywhere in this code.
 const $ = s => document.querySelector(s), SYMS = ['MES', 'MNQ', 'MGC'], TFS = ['5m', '15m', '60m', '1d'], TFS_S = { '5m': 300, '15m': 900, '60m': 3600, '1d': 86400 };
-const RAW = 'https://raw.githubusercontent.com/phillipalvaranga-arch/strat-master-pa/data/', RELAY = 'http://127.0.0.1:8790';
+const RAW = 'https://raw.githubusercontent.com/phillipalvaranga-arch/strat-master-pa/data/', RELAY = '';
 const st = JSON.parse(localStorage.smpa || '{}'); const S = Object.assign({ sym: 'MES', tf: '5m', minRR: 1.5, daily: 300, minConf: 60, sound: true, notif: false, log: [], seen: {} }, st);
 const save = () => localStorage.smpa = JSON.stringify(S);
 const CT = { timeZone: 'America/Chicago' };
@@ -11,7 +11,7 @@ const money = x => (x < 0 ? '-$' : '$') + Math.abs(x).toFixed(2);
 const toast = m => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 3000); };
 let cache = {}, feed = { src: '', age: 0 }, relayOK = null, active = null;
 
-async function relayUp() { if (relayOK !== null) return relayOK; try { const c = new AbortController(); setTimeout(() => c.abort(), 1200); relayOK = (await fetch(RELAY + '/ping', { signal: c.signal })).ok; } catch { relayOK = false; } return relayOK; }
+async function relayUp() { if (location.hostname !== '127.0.0.1') return false; if (relayOK !== null) return relayOK; try { const c = new AbortController(); setTimeout(() => c.abort(), 1200); relayOK = (await fetch(RELAY + '/ping', { signal: c.signal })).ok; } catch { relayOK = false; } return relayOK; }
 function parseYahoo(j) { const r = j.chart.result[0], q = r.indicators.quote[0]; return r.timestamp.map((t, i) => [t, q.open[i], q.high[i], q.low[i], q.close[i]]).filter(b => b.every(x => x != null)); }
 async function load(sym, tf) {
   let rows, src;

@@ -5,14 +5,14 @@ $base = 'https://phillipalvaranga-arch.github.io/strat-master-pa'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Invoke-WebRequest "$base/icons/strat-master-pa.ico" -OutFile "$d\strat-master-pa.ico" -UseBasicParsing
 Invoke-WebRequest "$base/relay/relay.js" -OutFile "$d\relay.js" -UseBasicParsing
-$url = "$base/"
+$url = "http://127.0.0.1:8795/"
 $node = Join-Path $env:LOCALAPPDATA 'StratBot\node\node.exe'
 $vbs = @"
 Set sh = CreateObject("WScript.Shell"): Set fso = CreateObject("Scripting.FileSystemObject")
 node = "$node"
 If fso.FileExists(node) Then
   On Error Resume Next
-  Set h = CreateObject("MSXML2.XMLHTTP"): h.Open "GET", "http://127.0.0.1:8790/ping", False: h.Send
+  Set h = CreateObject("MSXML2.XMLHTTP"): h.Open "GET", "http://127.0.0.1:8795/ping", False: h.Send
   If Err.Number <> 0 Then sh.Run """" & node & """ ""$d\relay.js""", 0, False: WScript.Sleep 800
   On Error GoTo 0
 End If
@@ -26,7 +26,8 @@ ElseIf fso.FileExists(c2) Then
 ElseIf fso.FileExists(e1) Then
   b = e1
 End If
-If b <> "" Then sh.Run """" & b & """ --app=$url --window-size=1400,950", 1, False Else sh.Run "$url", 1, False
+If Not fso.FileExists(node) Then url = "https://phillipalvaranga-arch.github.io/strat-master-pa/" Else url = "$url"
+If b <> "" Then sh.Run """" & b & """ --app=" & url & " --window-size=1400,950", 1, False Else sh.Run url, 1, False
 "@
 Set-Content -Path "$d\launch.vbs" -Value $vbs -Encoding ASCII
 $ws = New-Object -ComObject WScript.Shell
