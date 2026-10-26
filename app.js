@@ -51,7 +51,7 @@ function showSig(s) {
   lines.forEach(l => cs.removePriceLine(l)); lines = []; cs.setMarkers([]);
   if (!s) { $('#sigcard').innerHTML = '<div class="now wait"><b>No good trade on ' + S.sym + ' ' + S.tf + ' right now — wait.</b><span>The app checks again every minute.</span></div>'; return; }
   const ln = (p, c, t) => lines.push(cs.createPriceLine({ price: p, color: c, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: t }));
-  ln(s.entry, '#3b82f6', 'ENTRY ' + s.entry.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.stop, '#ef4444', 'STOP ' + s.stop.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.target, '#22c55e', 'TARGET ' + s.target.toFixed(s.sym === 'MGC' ? 1 : 2));
+  ln(s.entry, '#3b82f6', 'ENTRY · ' + OT(s).en + ' ' + s.entry.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.stop, '#ef4444', 'SL · ' + OT(s).sl + ' ' + s.stop.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.target, '#22c55e', 'TP · ' + OT(s).tp + ' ' + s.target.toFixed(s.sym === 'MGC' ? 1 : 2));
   cs.setMarkers([{ time: ctOff(s.t), position: s.dir === 'LONG' ? 'belowBar' : 'aboveBar', color: s.dir === 'LONG' ? '#22c55e' : '#ef4444', shape: s.dir === 'LONG' ? 'arrowUp' : 'arrowDown', text: s.setup }]);
   $('#sigcard').innerHTML = '<div class="note" style="margin:0 0 4px">Trade idea for this chart</div>' + sigHTML(s); bindPlans($('#sigcard'), [s]);
 }
@@ -62,18 +62,19 @@ function sigHTML(s, k) {
   return `<div class="plan ${L ? 'L' : 'S'}" data-k="${k ?? ''}"><div class="ptop"><span class="pdir ${L ? 'g' : 'r'}">${L ? 'BUY · LONG' : 'SELL · SHORT'} ${s.sym}</span><span class="conf ${rt[1]}">${rt[0]} idea</span></div>
   <div class="psub">${Strat.SPEC[s.sym].name} · ${S.tf} chart · ${fmtT(s.t)}</div>
   <div class="money"><span class="g">Win ${money(rewPts * sp.pv)}</span> / <span class="r">Risk ${money(riskPts * sp.pv)}</span> <small>per contract</small></div>
-  <div class="pgrid"><div class="pbox e"><span>1 · GET IN AT</span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy stop' : 'Sell stop'} at ${fp(s.entry, s.sym)}</i></div>
-  <div class="pbox s"><span>2 · STOP LOSS (get out if wrong)</span><b>${fp(s.stop, s.sym)}</b><i>${tk(riskPts)} ticks · ${riskPts.toFixed(2)} pts · −${money(riskPts * sp.pv)}/contract</i></div>
-  <div class="pbox t"><span>3 · TAKE PROFIT</span><b>${fp(s.target, s.sym)}</b><i>${tk(rewPts)} ticks · ${rewPts.toFixed(2)} pts · +${money(rewPts * sp.pv)}/contract</i></div></div>
+  <div class="pgrid"><div class="pbox e"><span>1 · ENTRY / <em>${OT(s).en}</em></span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy' : 'Sell'} stop order at ${fp(s.entry, s.sym)} (fills when price breaks ${L ? 'above' : 'below'})</i></div>
+  <div class="pbox s"><span>2 · STOP LOSS / <em>${OT(s).sl}</em></span><b>${fp(s.stop, s.sym)}</b><i>${tk(riskPts)} ticks · ${riskPts.toFixed(2)} pts · −${money(riskPts * sp.pv)}/contract</i></div>
+  <div class="pbox t"><span>3 · TAKE PROFIT / <em>${OT(s).tp}</em></span><b>${fp(s.target, s.sym)}</b><i>${tk(rewPts)} ticks · ${rewPts.toFixed(2)} pts · +${money(rewPts * sp.pv)}/contract</i></div></div>
   <div class="pinfo">Suggested size: <b>${z.contracts}</b> contract(s) → could win <b class="g">${money(z.contracts * rewPts * sp.pv)}</b> or lose <b class="r">${money(z.contracts * riskPts * sp.pv)}</b> (keeps risk under ${money(mx)})</div>
-  <details class="pwhy"><summary>How to enter it & why</summary>On your trading platform: ${L ? 'Buy stop' : 'Sell stop'} order at <b>${fp(s.entry, s.sym)}</b>, stop loss at <b class="r">${fp(s.stop, s.sym)}</b>, take-profit limit at <b class="g">${fp(s.target, s.sym)}</b>. Only valid if price reaches the entry on the next ${S.tf} bar; otherwise cancel. <br>Why: ${plain(s)}<br><small>Pattern: ${s.setup} · Can win ${s.rr}× the risk · Score ${s.conf}/100</small></details>
+  <details class="pwhy"><summary>How to enter it & why</summary>On your trading platform: <b class="be">${OT(s).en}</b> at <b>${fp(s.entry, s.sym)}</b>, stop loss <b class="r">${OT(s).sl}</b> at <b class="r">${fp(s.stop, s.sym)}</b>, take profit <b class="g">${OT(s).tp}</b> at <b class="g">${fp(s.target, s.sym)}</b>. Only valid if price reaches the entry on the next ${S.tf} bar; otherwise cancel. <br>Why: ${plain(s)}<br><small>Pattern: ${s.setup} · Can win ${s.rr}× the risk · Score ${s.conf}/100</small></details>
   <div class="pbtns"><button class="ghost chartbtn">📈 See on chart</button><button class="primary logbtn">📝 I took this trade</button></div></div>`;
 }
+const OT = s => s.dir === 'LONG' ? { en: 'BUY STOP', tp: 'SELL LIMIT', sl: 'SELL STOP' } : { en: 'SELL STOP', tp: 'BUY LIMIT', sl: 'BUY STOP' }; // all setups enter on a stop order at the trigger-bar break
 const rating = c => c >= 70 ? ['Strong', 'g'] : c >= 55 ? ['Okay', 'a'] : ['Weak', 'r'];
 const plain = s => (s.dir === 'LONG' ? 'Price paused, and a move above ' + fp(s.entry, s.sym) + ' would show buyers taking over.' : 'Price paused, and a move below ' + fp(s.entry, s.sym) + ' would show sellers taking over.') + (/agrees/.test(s.why) ? ' The bigger trend agrees (good).' : /disagrees/.test(s.why) ? ' The bigger trend points the other way (be careful).' : '') + ' Take profit is at an earlier price level.';
 function bindPlans(root, list) { root.querySelectorAll('.plan').forEach((el, i) => { el.querySelector('.logbtn').onclick = ev => { ev.stopPropagation(); prefillLog(list[i]); }; const cb = el.querySelector('.chartbtn'); if (cb) cb.onclick = ev => { ev.stopPropagation(); active = list[i]; S.sym = active.sym; save(); tab('chart'); renderSegs(); drawChart(); }; }); }
 function prefillLog(s) { const f = $('#lf'), z = Strat.size(Math.min(S.daily / 2, 150), s, s.sym); f.sym.value = s.sym; f.dir.value = s.dir; f.qty.value = Math.max(1, z.contracts); f.entry.value = s.entry; f.exit.value = '';
-  f.note.value = `${s.setup} ${s.sym} ${S.tf} · stop ${fp(s.stop, s.sym)} · target ${fp(s.target, s.sym)} · ${s.rr}:1`; tab('log'); f.exit.focus(); toast('Trade plan copied to the log — add your exit when done'); }
+  f.note.value = `${s.setup} ${s.sym} ${S.tf} · Entry ${OT(s).en} ${fp(s.entry, s.sym)} · SL ${OT(s).sl} ${fp(s.stop, s.sym)} · TP ${OT(s).tp} ${fp(s.target, s.sym)} · ${s.rr}:1`; tab('log'); f.exit.focus(); toast('Trade plan copied to the log — add your exit when done'); }
 function updFeed() {
   const f = $('#feed'); f.textContent = feed.src.split('·')[0] + ' · ' + (feed.age < 120 ? feed.age + 'm old' : 'market closed / stale');
   f.className = 'pill ' + (feed.age <= 15 ? 'g' : feed.age <= 40 ? 'a' : 'r'); f.title = feed.src;
@@ -87,7 +88,7 @@ async function scanAll() {
   const lim = S.daily + Math.min(0, todayPnl()) <= 0, b = all[0];
   $('#now').className = 'now ' + (lim ? 'stop' : b ? (b.dir === 'LONG' ? 'buy' : 'sell') : 'wait');
   $('#now').innerHTML = lim ? '<b>You hit today\'s money limit — stop trading for today.</b><span>Come back tomorrow fresh.</span>'
-    : b ? `<small>WHAT TO DO NOW</small><b>Possible trade on ${b.sym}: ${b.dir === 'LONG' ? 'BUY' : 'SELL'} at <i class="be">${fp(b.entry, b.sym)}</i>, stop loss <i class="r">${fp(b.stop, b.sym)}</i>, take profit <i class="g">${fp(b.target, b.sym)}</i>.</b><span>${rating(b.conf)[0]} idea · Win ${money(Math.abs(b.target - b.entry) * Strat.SPEC[b.sym].pv)} / Risk ${money(Math.abs(b.entry - b.stop) * Strat.SPEC[b.sym].pv)} per contract${inSession() ? '' : ' · Outside your 8:30 AM–2:45 PM CT hours'}. Details below.</span>`
+    : b ? `<small>WHAT TO DO NOW</small><b>Possible trade on ${b.sym}: Entry <i class="be">${OT(b).en} ${fp(b.entry, b.sym)}</i>, stop loss <i class="r">${OT(b).sl} ${fp(b.stop, b.sym)}</i>, take profit <i class="g">${OT(b).tp} ${fp(b.target, b.sym)}</i>.</b><span>${rating(b.conf)[0]} idea · Win ${money(Math.abs(b.target - b.entry) * Strat.SPEC[b.sym].pv)} / Risk ${money(Math.abs(b.entry - b.stop) * Strat.SPEC[b.sym].pv)} per contract${inSession() ? '' : ' · Outside your 8:30 AM–2:45 PM CT hours'}. Details below.</span>`
     : `<small>WHAT TO DO NOW</small><b>No good trade right now — wait.</b><span>Checked MES, MNQ and MGC on the ${S.tf} chart. Checking again every minute${inSession() ? '' : ' · Outside your 8:30 AM–2:45 PM CT hours'}.</span>`;
   const sess = inSession();
   for (const s of all) { const k = `${s.sym}${S.tf}${s.t}${s.dir}`; if (S.seen[k] || s.conf < S.minConf) continue; S.seen[k] = 1; if (sess) alertSig(s); }
