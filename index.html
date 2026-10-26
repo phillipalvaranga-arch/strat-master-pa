@@ -3,7 +3,7 @@
 <body>
 <header><div class="brand"><img src="icons/icon-192.png" alt=""><div><b>Strat Master P.A</b><small>Signals only · you place every trade</small></div></div>
 <div class="hdr-r"><span id="clock"></span><span id="sess" class="pill"></span><span id="feed" class="pill"></span></div></header>
-<nav id="tabs"><button data-t="chart" class="on">Chart</button><button data-t="signals">Signals</button><button data-t="size">Size</button><button data-t="log">Trade Log</button><button data-t="settings">Settings</button></nav>
+<nav id="tabs"><button data-t="chart" class="on">Chart</button><button data-t="signals">Signals</button><button data-t="size">Size</button><button data-t="log">Trade Log</button><button data-t="st">Strat Trader</button><button data-t="settings">Settings</button></nav>
 <main>
 <section id="chart" class="tab on">
  <div class="bar"><div class="seg" id="syms"></div><div class="seg" id="tfs"></div><button id="refresh" class="ghost">↻</button></div>
@@ -20,12 +20,17 @@
  <div class="row"><label>Entry<input name="entry" type="number" step="any" required></label><label>Exit<input name="exit" type="number" step="any"></label><label>Fees $<input name="fees" type="number" step="any" value="1.24"></label></div>
  <label>Setup / notes<input name="note" placeholder="e.g. 2-1-2 MES 5m from Strat Master P.A"></label><button class="primary">Save trade</button></form></div>
  <div class="card"><h3>Stats</h3><div id="stats"></div></div><div id="loglist"></div><button id="exportlog" class="ghost">Export CSV</button></section>
+<section id="st" class="tab"><div id="stconn" class="note"></div><div class="card"><h3>Performance analysis</h3><div id="stana"></div></div><div class="card"><h3>Suggestions to improve</h3><div id="stsug"></div></div><div class="card"><h3>Recent Strat Trader alerts</h3><div id="stalerts"></div></div></section>
 <section id="settings" class="tab"><div class="card">
  <label>Minimum reward:risk<select id="sminrr"><option>1.5</option><option>2</option><option>2.5</option><option>3</option></select></label>
  <label>Daily loss limit $<input id="sdaily" type="number" value="300"></label>
  <label>Minimum confidence to alert<input id="sminconf" type="number" value="60"></label>
  <label class="chk"><input id="ssound" type="checkbox" checked> Sound on new signal</label>
  <label class="chk"><input id="snotif" type="checkbox"> Phone/desktop notification</label>
+<h3 style="margin-top:16px">Strat Trader link (read-only)</h3>
+ <label>Strat Trader URL<input id="sturl" placeholder="https://strat-trader-xxxx.onrender.com"></label>
+ <label>Dashboard password (stored only on this device)<input id="stkey" type="password" autocomplete="off"></label>
+ <button id="sttest" class="ghost">Connect &amp; test</button>
  <p class="note">Strat Master P.A never connects to Apex, Topstep, Tradovate or TradingView accounts and cannot place orders. Data is delayed (see Feed pill). Confirm price on your trading platform before entering.</p></div></section>
 </main>
 <div id="toast"></div>

@@ -120,7 +120,7 @@ $('#lf').onsubmit = e => {
 $('#exportlog').onclick = () => { const c = 'time_ct,symbol,side,qty,entry,exit,pnl,note\n' + S.log.map(x => [new Date(x.ts).toLocaleString('en-US', CT).replace(',', ''), x.sym, x.dir, x.qty, x.entry, x.exit ?? '', x.pnl ?? '', '"' + (x.note || '').replace(/"/g, "'") + '"'].join(',')).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], { type: 'text/csv' })); a.download = 'strat-master-trades.csv'; a.click(); };
 
 // ---- ui
-function tab(t) { document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'signals') { scanAll(); track(); } if (t === 'size') renderRisk(); }
+function tab(t) { document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'signals') { scanAll(); track(); } if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => tab(b.dataset.t));
 function renderSegs() {
   $('#syms').innerHTML = SYMS.map(s => `<button class="${s === S.sym ? 'on' : ''}">${s}</button>`).join(''); $('#tfs').innerHTML = TFS.map(s => `<button class="${s === S.tf ? 'on' : ''}">${s}</button>`).join('');
@@ -133,6 +133,42 @@ const bindSet = (id, k, cb = x => x) => { const el = $('#' + id); if (el.type ==
 bindSet('sminrr', 'minRR', Number); bindSet('sdaily', 'daily', Number); bindSet('sminconf', 'minConf', Number); bindSet('ssound', 'sound');
 bindSet('snotif', 'notif'); $('#snotif').addEventListener('change', e => { if (e.target.checked && 'Notification' in window) Notification.requestPermission().then(p => { if (p !== 'granted') { toast('Notifications blocked by the browser'); S.notif = false; e.target.checked = false; save(); } }); });
 $('#rrlbl').textContent = S.minRR;
+// ---- Strat Trader link: GET-only reads of /api/journal, /api/suggestions. Never calls any POST/order endpoint.
+$('#sturl').value = S.stUrl || ''; $('#stkey').value = S.stKey || '';
+$('#sturl').onchange = () => { S.stUrl = $('#sturl').value.trim().replace(/\/+$/, ''); save(); }; $('#stkey').onchange = () => { S.stKey = $('#stkey').value; save(); };
+$('#sttest').onclick = () => { $('#sturl').onchange(); $('#stkey').onchange(); tab('st'); };
+const stGet = async p => { const r = await fetch(S.stUrl + p, { headers: { 'x-dashboard-key': S.stKey || '' }, cache: 'no-store' }); if (r.status === 401) throw new Error('wrong dashboard password'); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
+function analyze(trades) {
+  const P = t => t.symbol ? t.symbol.replace(/[A-Z]\d+$/, '') : t.sym;
+  const cl = trades.filter(t => t.taken !== false && (Number.isFinite(t.pnl) || Number.isFinite(t.r)));
+  const hourCT = t => new Date(t.t).toLocaleString('en-US', { ...CT, hour: 'numeric' });
+  const prr = t => (Number.isFinite(t.entry) && Number.isFinite(t.stop) && Number.isFinite(t.target) && t.entry !== t.stop) ? Math.abs(t.target - t.entry) / Math.abs(t.entry - t.stop) : null;
+  const sum = arr => { const w = arr.filter(t => (t.pnl ?? t.r) > 0).length, pnl = arr.reduce((a, t) => a + (t.pnl || 0), 0), rs = arr.map(t => t.r).filter(Number.isFinite); return { n: arr.length, wr: arr.length ? w / arr.length * 100 : 0, pnl, avgR: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null }; };
+  const by = f => { const m = {}; cl.forEach(t => { const k = f(t) || '—'; (m[k] = m[k] || []).push(t); }); return Object.entries(m).map(([k, v]) => ({ k, ...sum(v) })).sort((a, b) => b.pnl - a.pnl); };
+  const rrs = trades.map(prr).filter(x => x != null);
+  return { all: sum(cl), avgPlanRR: rrs.length ? rrs.reduce((a, b) => a + b, 0) / rrs.length : null, lowRR: rrs.filter(x => x < 1.5).length, nRR: rrs.length,
+    sym: by(P), combo: by(t => t.combo || t.setup), hour: by(hourCT), tf: by(t => t.timeframe), src: by(t => t.source) };
+}
+const tbl = (title, rows) => rows.length ? `<h4 style="margin:12px 0 4px">${title}</h4><table><tr><th></th><th>Trades</th><th>Win %</th><th>Avg R</th><th>P&L</th></tr>${rows.map(r => `<tr><td>${r.k}</td><td>${r.n}</td><td>${r.wr.toFixed(0)}%</td><td>${r.avgR == null ? '—' : r.avgR.toFixed(2)}</td><td class="${r.pnl >= 0 ? 'g' : 'r'}">${money(r.pnl)}</td></tr>`).join('')}</table>` : '';
+async function loadST() {
+  const c = $('#stconn');
+  const local = S.log.filter(x => x.pnl != null).map(x => ({ t: new Date(x.ts).toISOString(), sym: x.sym, side: x.dir, entry: x.entry, pnl: x.pnl, taken: true, source: 'Strat Master log', combo: (x.note || '').match(/\d-\d(-\d)?/)?.[0] }));
+  let j = [], sg = [];
+  if (!S.stUrl || !S.stKey) c.innerHTML = 'Not linked yet. In <b>Settings → Strat Trader link</b>, enter your Strat Trader URL and dashboard password. Showing this app\'s own log only.';
+  else { c.textContent = 'Loading from Strat Trader…'; try { [j, sg] = await Promise.all([stGet('/api/journal'), stGet('/api/suggestions').catch(() => [])]); c.innerHTML = `<span class="g">Linked (read-only)</span> · ${j.length} records from Strat Trader · ${new Date().toLocaleTimeString('en-US', { ...CT, hour: 'numeric', minute: '2-digit' })} CT`; }
+    catch (e) { c.innerHTML = `<span class="r">Could not reach Strat Trader: ${e.message}.</span> If it's on Render's free plan it may be asleep — wait 1 minute and reopen this tab.`; } }
+  const A = analyze([...j, ...local]), s = A.all;
+  $('#stana').innerHTML = `<div class="statg"><div><span>Closed trades</span><b>${s.n}</b></div><div><span>Win rate</span><b>${s.wr.toFixed(0)}%</b></div><div><span>Net P&L</span><b class="${s.pnl >= 0 ? 'g' : 'r'}">${money(s.pnl)}</b></div><div><span>Avg R per trade</span><b>${s.avgR == null ? '—' : s.avgR.toFixed(2)}</b></div><div><span>Avg planned R:R</span><b class="${A.avgPlanRR >= 1.5 ? 'g' : 'r'}">${A.avgPlanRR == null ? '—' : A.avgPlanRR.toFixed(2) + ':1'}</b></div></div>` + tbl('By instrument', A.sym) + tbl('By setup', A.combo) + tbl('By hour (CT)', A.hour) + tbl('By timeframe', A.tf) + tbl('By source', A.src);
+  const tips = [];
+  if (s.n < 20) tips.push(`Only ${s.n} closed trades — results need 20–30+ before trusting any pattern.`);
+  if (A.nRR && A.lowRR / A.nRR > .3) tips.push(`${A.lowRR} of ${A.nRR} alerts had a target under 1.5:1 reward:risk. Skip those or use a farther target — this is why a 67% win rate broke even.`);
+  if (s.wr > 55 && s.avgR != null && s.avgR <= 0.05) tips.push('High win rate but ~0R average: losses are bigger than wins. Widen targets or tighten stops.');
+  for (const [name, arr] of [['setup', A.combo], ['instrument', A.sym], ['hour', A.hour]]) { const q = arr.filter(r => r.n >= 5); if (q.length > 1) { tips.push(`Best ${name}: <b class="g">${q[0].k}</b> (${q[0].n} trades, ${money(q[0].pnl)}). Weakest: <b class="r">${q[q.length - 1].k}</b> (${q[q.length - 1].n} trades, ${money(q[q.length - 1].pnl)}).`); } }
+  (Array.isArray(sg) ? sg : []).slice(0, 5).forEach(x => tips.push('Strat Trader: ' + (x.text || JSON.stringify(x))));
+  $('#stsug').innerHTML = tips.length ? '<ul>' + tips.map(t => `<li>${t}</li>`).join('') + '</ul>' : '<span class="note">Not enough data yet.</span>';
+  const al = j.filter(t => t.source === 'alert').sort((a, b) => (b.t || '').localeCompare(a.t || '')).slice(0, 25);
+  $('#stalerts').innerHTML = al.length ? `<table><tr><th>When (CT)</th><th>Alert</th><th>Entry/Stop/Target</th><th>R:R</th><th>Result</th></tr>${al.map(t => { const rr = t.target && t.stop && t.entry !== t.stop ? Math.abs(t.target - t.entry) / Math.abs(t.entry - t.stop) : null; return `<tr><td>${new Date(t.t).toLocaleString('en-US', { ...CT, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td><td class="${/buy|long/i.test(t.side) ? 'g' : 'r'}">${t.side || ''} ${t.symbol || ''} ${t.combo || ''} ${t.timeframe || ''}</td><td>${t.entry ?? '—'} / ${t.stop ?? '—'} / ${t.target ?? '—'}</td><td class="${rr >= 1.5 ? 'g' : 'r'}">${rr ? rr.toFixed(2) : '—'}</td><td>${t.taken === false ? 'skipped' : t.outcome ? t.outcome + (Number.isFinite(t.pnl) ? ' ' + money(t.pnl) : '') : 'not logged'}</td></tr>`; }).join('')}</table>` : '<span class="note">No alerts received yet.</span>';
+}
 setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('en-US', { ...CT, hour: 'numeric', minute: '2-digit' }) + ' CT'; }, 1000);
 initChart(); renderSegs(); drawChart().catch(e => toast('Data load failed: ' + e.message)); renderLog(); renderRisk();
 setInterval(() => { drawChart().catch(() => { }); scanAll(); renderRisk(); }, 60000); setTimeout(scanAll, 3000);

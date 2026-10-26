@@ -19,7 +19,7 @@
     const out = [];
     const mk = (dir, name, why, base) => {
       const entry = rnd(dir > 0 ? b.h + sp.tick : b.l - sp.tick, sp.tick), stop = rnd(dir > 0 ? b.l - sp.tick : b.h + sp.tick, sp.tick), risk = Math.abs(entry - stop);
-      if (risk <= 0 || (A && risk > 2.5 * A)) return;
+      if (risk < 4 * sp.tick || (A && (risk > 2.5 * A || risk < 0.3 * A))) return;
       const tg = findTarget(bars, i, dir, entry, risk, minRR); if (!tg) return;
       let conf = base; const why2 = [why];
       const h = opt.htf; if (h) { const d = htfDir(h); if (d === dir) { conf += 15; why2.push('higher timeframe candle agrees'); } else if (d === -dir) { conf -= 15; why2.push('higher timeframe candle disagrees (caution)'); } }
