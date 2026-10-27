@@ -46,7 +46,7 @@
   function size(acctRisk, s, sym) { const sp = SPEC[sym]; const perC = s.risk * sp.pv; return { perContract: perC, contracts: Math.max(0, Math.floor(acctRisk / perC)) }; }
   // Always-available conditional plans from the last closed candle: break above / break below.
   function conditional(bars, sym, opt = {}) {
-    const minRR = opt.minRR || 1.5, sp = SPEC[sym] || { tick: 0.25, pv: 1 }, i = bars.length - 1; if (i < 1) return [];
+    const minRR = opt.minRR || 1.5, sp = SPEC[sym] || { tick: 0.25, pv: 1 }; bars = bars.slice(); while (bars.length > 3 && bars[bars.length - 1].h - bars[bars.length - 1].l < sp.tick) bars.pop(); const i = bars.length - 1; if (i < 1) return [];
     const b = bars[i], strat = i >= 3 ? scanAt(bars, i, sym, opt) : [], A = atr(bars), out = [];
     for (const dir of [1, -1]) {
       const hit = strat.find(x => (x.dir === 'LONG') === (dir > 0));

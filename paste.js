@@ -25,9 +25,9 @@
     if (bars.length < 3) throw new Error(`Only ${bars.length} usable candle rows (${badRows} rows had missing or non-number prices). Need at least 3`);
     bars.sort((a, b) => a.t - b.t); return bars;
   }
-  const tfOf = bars => { const d = bars.length > 2 ? bars[bars.length - 1].t - bars[bars.length - 2].t : 0; return d >= 86400 ? '1d' : d >= 60 ? Math.round(d / 60) + 'm' : '?'; };
+  const tfOf = bars => { const ds = bars.slice(-30).map((b, i, a) => i ? b.t - a[i - 1].t : 0).slice(1).sort((x, y) => x - y), d = ds.length ? ds[ds.length >> 1] : 0; return d >= 86400 ? '1d' : d >= 60 ? Math.round(d / 60) + 'm' : '?'; };
   function runScan(bars, sym, label, pre = '') {
-    const L = bars[bars.length - 1], plans = Strat.conditional(bars, sym, { minRR: +S.minRR }), hasStrat = plans.some(p => !p.nonStrat);
+    const sp0 = Strat.SPEC[sym]; bars = bars.slice(); while (bars.length > 3 && bars[bars.length - 1].h - bars[bars.length - 1].l < sp0.tick) bars.pop(); const L = bars[bars.length - 1], plans = Strat.conditional(bars, sym, { minRR: +S.minRR }), hasStrat = plans.some(p => !p.nonStrat);
     const head = pre + `<div class="note">${label}: ${bars.length} candles · ${sym} · ${tfOf(bars)} · last candle ${fmtT(L.t)} (high ${fp(L.h, sym)}, low ${fp(L.l, sym)}, close ${fp(L.c, sym)})</div>
       <div class="now ${hasStrat ? 'buy' : 'wait'}"><small>YOUR PLAN</small><b>${hasStrat ? 'Strat setup found. Use the matching plan below.' : 'No Strat setup on the last candle, so here are both "if" plans.'}</b><span>Place the order only for the side price actually breaks. If price breaks ABOVE ${fp(plans.find(p => p.dir === 'LONG').entry, sym)}, use the BUY plan; if it breaks BELOW ${fp(plans.find(p => p.dir === 'SHORT').entry, sym)}, use the SELL plan. Cancel the other one.</span></div>`;
     showPlans(plans, head);
