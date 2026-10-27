@@ -1,7 +1,7 @@
 // Strat Master P.A — signal-only. No broker connection, no order placement anywhere in this code.
 const $ = s => document.querySelector(s), SYMS = ['MES', 'MNQ', 'MGC'], TFS = ['5m', '15m', '30m', '60m', '1d'], TFS_S = { '5m': 300, '15m': 900, '30m': 1800, '60m': 3600, '1d': 86400 };
 const RAW = 'https://raw.githubusercontent.com/phillipalvaranga-arch/strat-master-pa/data/', RELAY = '';
-const st = JSON.parse(localStorage.smpa || '{}'); const S = Object.assign({ sym: 'MES', tf: '5m', minRR: 1.5, daily: 300, minConf: 55, sound: true, notif: false, log: [], seen: {} }, st);
+const st = JSON.parse(localStorage.smpa || '{}'); const S = Object.assign({ sym: 'MES', tf: '5m', minRR: 1.5, daily: 300, minConf: 55, sound: true, notif: false, log: [], seen: {}, learnOn: true, learnReset: 0 }, st);
 const save = () => localStorage.smpa = JSON.stringify(S);
 const CT = { timeZone: 'America/Chicago' };
 const fmtT = t => new Date(t * 1000).toLocaleString('en-US', { ...CT, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
@@ -26,7 +26,7 @@ const htfOf = tf => ({ '5m': '30m', '15m': '60m', '30m': '60m', '60m': '1d', '1d
 async function scan(sym, tf) {
   const d = await load(sym, tf), h = htfOf(tf) ? (await load(sym, htfOf(tf))).closed : null;
   const B = d.closed, i = B.length - 1; if (i < 3) return { sigs: [], d };
-  return { sigs: Strat.scanAt(B, i, sym, { minRR: +S.minRR, htf: h }), d };
+  return { sigs: Strat.scanAt(B, i, sym, { minRR: +S.minRR, htf: h }).map(x => ({ ...x, tf })), d };
 }
 
 // ---- chart
@@ -48,7 +48,9 @@ async function drawChart() {
   updFeed(); showSig(active && active.sym === S.sym ? active : sigs[0] || null);
 }
 function showSig(s) {
+  if (s && S.learnOn && !s.learn) s = Learn.apply(s, S.tf); if (s && !s.ai) s = AIA.apply(s);
   lines.forEach(l => cs.removePriceLine(l)); lines = []; cs.setMarkers([]);
+  AIA.levels(S.sym).forEach(([p, c, t]) => lines.push(cs.createPriceLine({ price: p, color: c, lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: t })));
   if (!s) { $('#sigcard').innerHTML = '<div class="now wait"><b>No good trade on ' + S.sym + ' ' + S.tf + ' right now — wait.</b><span>The app checks again every minute.</span></div>'; return; }
   const ln = (p, c, t) => lines.push(cs.createPriceLine({ price: p, color: c, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: t }));
   ln(s.entry, '#3b82f6', 'ENTRY · ' + OT(s).en + ' ' + s.entry.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.stop, '#ef4444', 'SL · ' + OT(s).sl + ' ' + s.stop.toFixed(s.sym === 'MGC' ? 1 : 2)); ln(s.target, '#22c55e', 'TP · ' + OT(s).tp + ' ' + s.target.toFixed(s.sym === 'MGC' ? 1 : 2));
@@ -61,6 +63,7 @@ function sigHTML(s, k) {
   const tk = x => Math.round(x / sp.tick), mx = Math.min(S.daily / 2, 150), z = Strat.size(mx, s, s.sym), rt = rating(s.conf), n1 = Math.max(1, z.contracts);
   return `<div class="plan ${L ? 'L' : 'S'}" data-k="${k ?? ''}"><div class="ptop"><span class="pdir ${L ? 'g' : 'r'}">${L ? 'BUY · LONG' : 'SELL · SHORT'} ${s.sym}</span><span class="conf ${rt[1]}">${rt[0]} idea</span></div>
   ${s.ifTxt ? `<div class="iftxt ${L ? 'g' : 'r'}">${s.ifTxt} →</div>` : ''}${s.nonStrat ? '<div class="nonstrat">⚠️ Not a Strat setup — lower odds. Use only if it fits your plan.</div>' : ''}
+  ${s.learn ? `<details class="learntag"><summary>🧠 Adjusted by your results${s.learn.delta ? ` (${s.learn.delta > 0 ? '+' : ''}${s.learn.delta})` : ''} — why?</summary><ul>${s.learn.why.map(w => `<li>${w}</li>`).join('')}${s.learn.hideWhy ? `<li class="r">${s.learn.hideWhy} — normally hidden</li>` : ''}</ul></details>` : ''}${s.ai ? `<div class="aitags">${s.ai.map(n => `<span class="aitag ${n.c}">🤖 ${n.t}</span>`).join('')}</div>` : ''}${s.hourWarn ? `<div class="nonstrat">⏰ ${s.hourWarn}</div>` : ''}
   <div class="psub">${Strat.SPEC[s.sym].name} · ${S.tf} chart · ${fmtT(s.t)}</div>
   <div class="money"><span class="g">Win ${money(rewPts * sp.pv)}</span> / <span class="r">Risk ${money(riskPts * sp.pv)}</span> <small>per contract</small></div>
   <div class="pgrid"><div class="pbox e"><span>1 · ENTRY / <em>${OT(s).en}</em></span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy' : 'Sell'} stop order at ${fp(s.entry, s.sym)} (fills when price breaks ${L ? 'above' : 'below'})</i></div>
@@ -84,7 +87,9 @@ function updFeed() {
 // ---- scanner + alerts
 async function scanAll() {
   const all = []; for (const s of SYMS) { try { all.push(...(await scan(s, S.tf)).sigs); } catch (e) { console.warn(e); } }
-  all.sort((a, b) => b.conf - a.conf);
+  let ideas = (S.learnOn ? all.map(x => Learn.apply(x, S.tf)) : all).map(AIA.apply); const hid = ideas.filter(x => x.hidden); if (!S.showHidden) ideas = ideas.filter(x => !x.hidden);
+  ideas.sort((a, b) => b.conf - a.conf); all.length = 0; all.push(...ideas);
+  setTimeout(() => { const hb = $('#hidnote'); if (hb) hb.remove(); if (hid.length) $('#siglist').insertAdjacentHTML('beforeend', `<div id="hidnote" class="note card">🧠 ${hid.length} idea(s) ${S.showHidden ? 'shown even though' : 'hidden because'} your results say they lose (${hid.map(x => x.learn.hideWhy).join('; ')}). <button class="ghost" id="togglehid">${S.showHidden ? 'Hide them' : 'Show anyway'}</button></div>`); const t = $('#togglehid'); if (t) t.onclick = () => { S.showHidden = !S.showHidden; save(); scanAll(); }; }, 0);
   $('#siglist').innerHTML = all.map((x, k) => sigHTML(x, k)).join(''); bindPlans($('#siglist'), all);
   const lim = S.daily + Math.min(0, todayPnl()) <= 0, b = all[0];
   $('#now').className = 'now ' + (lim ? 'stop' : b ? (b.dir === 'LONG' ? 'buy' : 'sell') : 'wait');
@@ -134,12 +139,12 @@ function renderLog() {
 $('#lf').onsubmit = e => {
   e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); const pv = Strat.SPEC[f.sym].pv, q = +f.qty || 1;
   const pnl = f.exit === '' ? null : +(((+f.exit - +f.entry) * (f.dir === 'LONG' ? 1 : -1) * pv * q) - (+f.fees || 0) * q).toFixed(2);
-  S.log.push({ ts: Date.now(), day: ctDay(), sym: f.sym, dir: f.dir, qty: q, entry: +f.entry, exit: f.exit === '' ? null : +f.exit, pnl, note: f.note }); save(); e.target.reset(); renderLog(); renderRisk(); toast(pnl == null ? 'Saved (open)' : 'Saved: ' + money(pnl));
+  S.log.push({ ts: Date.now(), day: ctDay(), sym: f.sym, dir: f.dir, qty: q, entry: +f.entry, exit: f.exit === '' ? null : +f.exit, pnl, note: f.note }); save(); e.target.reset(); renderLog(); renderRisk(); refreshLearn(); toast(pnl == null ? 'Saved (open)' : 'Saved: ' + money(pnl));
 };
 $('#exportlog').onclick = () => { const c = 'time_ct,symbol,side,qty,entry,exit,pnl,note\n' + S.log.map(x => [new Date(x.ts).toLocaleString('en-US', CT).replace(',', ''), x.sym, x.dir, x.qty, x.entry, x.exit ?? '', x.pnl ?? '', '"' + (x.note || '').replace(/"/g, "'") + '"'].join(',')).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], { type: 'text/csv' })); a.download = 'strat-master-trades.csv'; a.click(); };
 
 // ---- ui
-function tab(t) { const navT = ['size', 'st', 'signals', 'settings'].includes(t) ? 'more' : t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === navT)); scrollTo(0, 0); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'home') scanAll(); if (t === 'paste' && window.pasteInit) pasteInit(); if (t === 'signals') track(); if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
+function tab(t) { const navT = ['size', 'st', 'signals', 'settings', 'ai'].includes(t) ? 'more' : t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === navT)); scrollTo(0, 0); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'home') scanAll(); if (t === 'paste' && window.pasteInit) pasteInit(); if (t === 'signals') track(); if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => tab(b.dataset.t));
 function renderSegs() {
   $('#syms').innerHTML = SYMS.map(s => `<button class="${s === S.sym ? 'on' : ''}">${s}</button>`).join(''); $('#tfs').innerHTML = TFS.map(s => `<button class="${s === S.tf ? 'on' : ''}">${s}</button>`).join('');
@@ -199,6 +204,8 @@ const HELP = { tf: 'This is how long each candle on the chart lasts. 5m = 5 minu
   log: 'After a trade, write down where you got in and out. The app works out your profit or loss, how often you win, and keeps your daily limit up to date.',
   csv: 'Most accurate way. In TradingView: open your chart → click the arrow next to the chart layout name (top right) → Export chart data… → Export. Open the .csv file here (or open it in Notepad, copy all, paste in the box). Pick the contract, then tap Read my data. No AI key needed.',
   img: 'Paste a screenshot (Ctrl+V on the PC, or choose/take a photo on the phone). An AI reads the candles and price scale, so prices can be off — always check them on your chart. Needs your own AI key in More → Settings (about 1 cent or less per picture).',
+  learn: 'The app studies how its ideas did on recent prices, plus trades you log here and in Strat Trader. It then rates ideas higher or lower, hides combos that keep losing (only after 8+ results), and can move the take profit (1.5–3× risk) or stop toward what worked. Your own trades count 3× more. Turn it off or reset it in More → Settings.',
+  ai: 'Copy an analysis from the Claude or ChatGPT app and paste it here. The app picks out the direction (long/short, bullish/bearish), entry, stop, target, support/resistance levels, timeframe and rules like "avoid MGC before 9:30". Check and fix anything on the confirm screen, then Apply. Ideas that agree get rated higher, ones that conflict get flagged, and levels are drawn on the chart. It expires when you choose (default: end of today).',
   track: 'This tests the same kind of trade ideas on recent price history. A negative number means they would have lost money if you took every one, so be picky and favor Strong ideas.' };
 document.querySelectorAll('.help').forEach(b => b.onclick = ev => { ev.stopPropagation(); showModal([HELP[b.dataset.h]]); });
 const GUIDE = ['<h2>Welcome to Strat Master P.A 👋</h2><p>This app <b>suggests</b> trades on MES, MNQ and MGC. It never trades for you — <b>you</b> place every trade yourself on your platform.</p>',
@@ -209,4 +216,62 @@ function showModal(pages, done) { let i = 0; const m = $('#modal'); const draw =
   $('#mnext').onclick = () => { if (++i < pages.length) draw(); else { m.hidden = true; done && done(); } }; $('#mskip').onclick = () => { m.hidden = true; done && done(); }; }
 $('#guideagain').onclick = () => showModal(GUIDE);
 if (!S.guided) showModal(GUIDE, () => { S.guided = true; save(); });
+// ---- Learn from my results
+let learnBusy = false;
+async function refreshLearn() {
+  if (learnBusy) return; learnBusy = true;
+  try {
+    const barsBy = {}, htfBy = {};
+    for (const sym of SYMS) { barsBy[sym] = {}; htfBy[sym] = {}; for (const tf of ['5m', '15m', '30m', '60m']) { try { barsBy[sym][tf] = (cache[sym + tf] || await load(sym, tf)).closed; const h = htfOf(tf); if (h) htfBy[sym][tf] = (cache[sym + h] || await load(sym, h)).closed; } catch { } } }
+    let j = []; if (S.stUrl && S.stKey) { try { j = await stGet('/api/journal'); } catch { } }
+    const since = (S.learnReset || 0) / 1000, recs = [...Learn.trackRecords(barsBy, htfBy), ...Learn.logRecords(S.log), ...Learn.stRecords(j)].filter(r => r.t >= since);
+    Learn.build(recs); renderLearn();
+  } finally { learnBusy = false; }
+}
+function renderLearn() {
+  const el = $('#learned'); if (!el) return;
+  if (!S.learnOn) { el.innerHTML = '<span class="note">Learning is off (More → Settings).</span>'; return; }
+  const m = Learn.model; if (!m) { el.innerHTML = '<span class="note">Studying your results…</span>'; return; }
+  el.innerHTML = `<ul class="learnlist">${AIA.active().filter(a => a.kind === 'item' && a.dir).map(a => `<li class="b">From ${a.src}: ${a.sym} ${a.dir === 'LONG' ? 'bullish' : 'bearish'} — matching ideas rated higher, opposite ones flagged.</li>`).join('')}${Learn.insights().map(i => `<li class="${i.c}">${i.t}</li>`).join('')}</ul><div class="note">Based on ${m.n} results (${m.mine} your own trades, the rest from the app's price-history record${S.learnReset ? ', since your last reset ' + new Date(S.learnReset).toLocaleDateString('en-US', CT) : ''}). Small samples are pulled toward "no effect" so a few trades can't swing things.</div>`;
+}
+$('#slearn').checked = S.learnOn; $('#slearn').onchange = () => { S.learnOn = $('#slearn').checked; save(); renderLearn(); scanAll(); };
+$('#lreset').onclick = () => { if (!confirm('Reset learning? The app will ignore all results before now (your trade log is kept).')) return; S.learnPrev = S.learnReset; S.learnReset = Date.now(); save(); Learn.build([]); refreshLearn().then(scanAll); toast('Learning reset'); };
+$('#lundo').onclick = () => { if (S.learnPrev == null) return toast('Nothing to undo'); S.learnReset = S.learnPrev; S.learnPrev = null; save(); refreshLearn().then(scanAll); toast('Reset undone'); };
+setTimeout(() => refreshLearn().then(scanAll), 2500); setInterval(refreshLearn, 10 * 60000);
+// ---- AI Analysis UI
+let aiDraft = null; const DT = x => new Date(x).toLocaleString('en-US', { ...CT, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
+$('#goai').onclick = () => tab('ai');
+$('#aiparse').onclick = () => { const txt = $('#aitxt').value; if (!txt.trim()) return toast('Paste the analysis first'); aiDraft = AIA.parse(txt, $('#aisrc').value); renderAIConfirm(); };
+function renderAIConfirm() {
+  const d = aiDraft, el = $('#aiconfirm'); if (!d) { el.innerHTML = ''; return; }
+  if (!d.items.length && !d.rules.length) { el.innerHTML = '<div class="bigwarn"><b>I couldn\'t find prices or a direction in that text.</b><span>Make sure it mentions an instrument (MES, MNQ, MGC, ES, NQ, Gold) and words like long/short, entry, stop, target, support or resistance. Or add one below by hand.</span></div><button id="aiadd" class="ghost">+ Add an instrument by hand</button>'; $('#aiadd').onclick = () => { d.items.push({ sym: S.sym, src: d.src || 'AI', dir: null, tf: null, entry: null, stop: null, target: null, support: [], resistance: [] }); renderAIConfirm(); }; return; }
+  const v = x => x == null ? '' : x, sel = (n, o, cur) => `<select data-f="${n}">${o.map(([k, l]) => `<option value="${k}"${k === (cur || '') ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+  el.innerHTML = `<div class="card"><h3>✅ Here's what I understood — fix anything, then Apply</h3><div class="note">Source: ${sel('src', [['Claude', 'Claude'], ['ChatGPT', 'ChatGPT'], ['AI', 'Other']], d.src)}</div>` +
+    d.items.map((it, i) => `<div class="aiitem" data-i="${i}">${it.warn ? `<div class="nonstrat">⚠️ ${it.warn}</div>` : ''}<div class="row2">
+      <label>Instrument${sel('sym', [['MES', 'MES'], ['MNQ', 'MNQ'], ['MGC', 'MGC']], it.sym)}</label><label>Direction${sel('dir', [['', '— none —'], ['LONG', 'Long / Buy'], ['SHORT', 'Short / Sell']], it.dir)}</label>
+      <label>Timeframe${sel('tf', [['', 'Any'], ['5m', '5m'], ['15m', '15m'], ['30m', '30m'], ['60m', '60m'], ['1d', 'Daily']], it.tf)}</label>
+      <label>Entry<input data-f="entry" inputmode="decimal" value="${v(it.entry)}"></label><label>Stop loss<input data-f="stop" inputmode="decimal" value="${v(it.stop)}"></label><label>Take profit<input data-f="target" inputmode="decimal" value="${v(it.target)}"></label>
+      <label>Support levels<input data-f="support" value="${it.support.join(', ')}" placeholder="e.g. 6005, 5990"></label><label>Resistance levels<input data-f="resistance" value="${it.resistance.join(', ')}"></label></div>
+      <button class="ghost aidel">Remove</button></div>`).join('') +
+    (d.rules.length ? `<h4>Rules found</h4>` + d.rules.map((r, i) => `<div class="airule" data-r="${i}">${r.kind === 'avoid' ? '🚫' : '⭐'} ${r.kind === 'setup' ? `Prefer ${r.setup} setups` : `${r.kind === 'avoid' ? 'Avoid' : 'Prefer'} ${r.sym || 'all'} ${AIA.fmtMin(r.from)}–${AIA.fmtMin(Math.min(r.to, 1439))} CT`} <span class="note">“${r.text}”</span> <button class="ghost airdel">✕</button></div>`).join('') : '') +
+    `<div class="pbtns"><button id="aiapply" class="big">Apply to my ideas</button><button id="aiadd" class="ghost">+ Add instrument</button><button id="aicancel" class="ghost">Cancel</button></div></div>`;
+  const read = () => { d.src = el.querySelector('[data-f=src]').value; el.querySelectorAll('.aiitem').forEach(n => { const it = d.items[n.dataset.i], g = f => n.querySelector(`[data-f=${f}]`).value.trim(), nb = f => g(f) === '' ? null : +g(f).replace(/,/g, '');
+    Object.assign(it, { sym: g('sym'), dir: g('dir') || null, tf: g('tf') || null, entry: nb('entry'), stop: nb('stop'), target: nb('target'), support: (g('support').match(/[\d,]*\d(?:\.\d+)?/g) || []).map(x => +x.replace(/,/g, '')), resistance: (g('resistance').match(/[\d,]*\d(?:\.\d+)?/g) || []).map(x => +x.replace(/,/g, '')) }); }); };
+  el.querySelectorAll('.aidel').forEach(b => b.onclick = () => { read(); d.items.splice(b.closest('.aiitem').dataset.i, 1); renderAIConfirm(); });
+  el.querySelectorAll('.airdel').forEach(b => b.onclick = () => { read(); d.rules.splice(b.closest('.airule').dataset.r, 1); renderAIConfirm(); });
+  $('#aiadd').onclick = () => { read(); d.items.push({ sym: S.sym, dir: null, tf: null, entry: null, stop: null, target: null, support: [], resistance: [] }); renderAIConfirm(); };
+  $('#aicancel').onclick = () => { aiDraft = null; renderAIConfirm(); };
+  $('#aiapply').onclick = () => { read(); const at = Date.now(), exp = AIA.expiry($('#aiexp').value), gid = at.toString(36); S.ai = S.ai || [];
+    d.items.forEach(it => S.ai.push({ ...it, kind: 'item', src: d.src, at, exp, gid })); d.rules.forEach(r => S.ai.push({ ...r, src: d.src, at, exp, gid })); save();
+    aiDraft = null; $('#aitxt').value = ''; renderAIConfirm(); renderAI(); scanAll(); drawChart().catch(() => { }); toast(`Applied — from ${d.src}`); };
+}
+function renderAI() {
+  const all = (S.ai || []).slice().sort((a, b) => b.at - a.at), now = Date.now();
+  const desc = a => a.kind === 'item' ? `${a.sym}${a.tf ? ' ' + a.tf : ''} ${a.dir ? (a.dir === 'LONG' ? '📈 bullish' : '📉 bearish') : ''}${a.entry ? ' · entry ' + a.entry : ''}${a.stop ? ' · stop ' + a.stop : ''}${a.target ? ' · target ' + a.target : ''}${a.support.length ? ' · support ' + a.support.join(', ') : ''}${a.resistance.length ? ' · resistance ' + a.resistance.join(', ') : ''}` : a.kind === 'setup' ? `Prefer ${a.setup} setups` : `${a.kind === 'avoid' ? '🚫 Avoid' : '⭐ Prefer'} ${a.sym || 'all'} ${AIA.fmtMin(a.from)}–${AIA.fmtMin(Math.min(a.to, 1439))} CT`;
+  $('#aihist').innerHTML = all.length ? all.map(a => `<div class="aih ${a.exp > now ? '' : 'old'}"><b>From ${a.src}</b> <span class="note">${DT(a.at)} · ${a.exp > now ? 'active until ' + DT(a.exp) : 'expired'}</span><div>${desc(a)}</div><button class="ghost aihdel" data-k="${a.at}|${S.ai.indexOf(a)}">Delete</button></div>`).join('') + '<button id="aiclear" class="ghost">Delete all</button>' : 'None yet.';
+  $('#aihist').querySelectorAll('.aihdel').forEach(b => b.onclick = () => { S.ai.splice(+b.dataset.k.split('|')[1], 1); save(); renderAI(); scanAll(); drawChart().catch(() => { }); });
+  const c = $('#aiclear'); if (c) c.onclick = () => { if (confirm('Delete all saved analyses?')) { S.ai = []; save(); renderAI(); scanAll(); drawChart().catch(() => { }); } };
+  const act = AIA.active(); $('#aiactive').innerHTML = act.length ? `<div class="card aion"><b>🤖 Using ${act.length} item(s) from ${[...new Set(act.map(a => a.src))].join(' & ')}</b><ul>${act.slice(0, 5).map(a => `<li>${desc(a)}</li>`).join('')}</ul><span class="note">Until ${DT(Math.min(...act.map(a => a.exp)))} · manage in More → AI Analysis</span></div>` : '';
+}
+renderAI(); setInterval(renderAI, 60000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

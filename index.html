@@ -6,9 +6,11 @@
 <nav id="tabs"><button data-t="home" class="on">🏠 Home</button><button data-t="chart">📈 Chart</button><button data-t="paste">📋 Paste Chart</button><button data-t="log">📝 My Trades</button><button data-t="more">☰ More</button></nav>
 <main>
 <section id="home" class="tab on">
+ <button id="goai" class="aibig">🤖 Paste analysis from Claude or ChatGPT<small>Copy their write-up, paste it here — the app reads it (no key needed) and uses it on your ideas</small></button><div id="aiactive"></div>
  <div id="now" class="now"><b>Checking the markets…</b></div>
  <div class="tfpick"><span>Checking every</span><div class="seg" id="tfs2"></div><button class="help" data-h="tf">?</button></div>
  <div id="siglist"></div>
+ <div class="card"><h3>🧠 What the app learned <button class="help" data-h="learn">?</button></h3><div id="learned"><span class="note">Studying your results…</span></div></div>
  <div class="card"><h3>Today's money limit <button class="help" data-h="risk">?</button></h3><div id="riskmini"></div></div>
 </section>
 <section id="paste" class="tab">
@@ -26,6 +28,7 @@
  <div class="card"><h3>Option 3 · Use the app's chart</h3><button id="pcur" class="ghost" style="width:100%;padding:14px">📈 Check the chart that is open in the app</button></div>
 </section>
 <section id="more" class="tab"><div class="morebtns">
+ <button data-go="ai">🤖 AI Analysis (Claude / ChatGPT)<small>Paste their analysis; the app applies it</small></button>
  <button data-go="size">🧮 How many contracts?<small>Size calculator and today's limit</small></button>
  <button data-go="st">🔗 Strat Trader<small>Your TradingView alerts and results</small></button>
  <button data-go="signals">📊 Track record<small>How these trade ideas did lately</small></button>
@@ -47,10 +50,21 @@
  <label>Setup / notes<input name="note" placeholder="e.g. 2-1-2 MES 5m from Strat Master P.A"></label><button class="primary">Save trade</button></form></div>
  <div class="card"><h3>Stats</h3><div id="stats"></div></div><div id="loglist"></div><button id="exportlog" class="ghost">Export CSV</button></section>
 <section id="st" class="tab"><button class="back ghost">‹ Back</button><div id="stconn" class="note"></div><div class="card"><h3>Performance analysis</h3><div id="stana"></div></div><div class="card"><h3>Suggestions to improve</h3><div id="stsug"></div></div><div class="card"><h3>Recent Strat Trader alerts</h3><div id="stalerts"></div></div></section>
+<section id="ai" class="tab"><button class="back ghost">‹ Back</button>
+<div class="card"><h3>🤖 Paste analysis from Claude or ChatGPT <button class="help" data-h="ai">?</button></h3>
+ <textarea id="aitxt" rows="9" placeholder="In the Claude or ChatGPT app, copy the analysis (long-press → Copy), then paste it here. Example: MES bearish 15m. Sell stop 6,048.25, stop 6,061, target 6,021.50. Support 6,005. Avoid MGC before 9:30 AM."></textarea>
+ <div class="row2"><label>From<select id="aisrc"><option value="">Detect</option><option>Claude</option><option>ChatGPT</option><option value="AI">Other</option></select></label>
+ <label>Use it until<select id="aiexp"><option value="eod">End of today</option><option value="4h">4 hours</option><option value="1d">24 hours</option><option value="1w">1 week</option></select></label></div>
+ <button id="aiparse" class="big">Read it</button><div class="note">Works without any AI key. Nothing is sent anywhere — it's read on this device.</div></div>
+<div id="aiconfirm"></div>
+<div class="card"><h3>Saved analyses</h3><div id="aihist" class="note">None yet.</div></div>
+</section>
 <section id="settings" class="tab"><button class="back ghost">‹ Back</button><div class="card">
  <label>Only show trades that can win at least … times the risk<select id="sminrr"><option>1.5</option><option>2</option><option>2.5</option><option>3</option></select></label>
  <label>Daily loss limit $<input id="sdaily" type="number" value="300"></label>
  <label>Alert me for<select id="sminconf"><option value="70">Strong ideas only</option><option value="55">Strong and Okay</option><option value="0">All ideas</option></select></label>
+ <label class="chk"><input id="slearn" type="checkbox" checked> Learn from my results and adjust ideas automatically</label>
+ <div class="pbtns"><button id="lreset" class="ghost">Reset learning</button><button id="lundo" class="ghost">Undo reset</button></div>
  <label class="chk"><input id="ssound" type="checkbox" checked> Sound on new signal</label>
  <label class="chk"><input id="snotif" type="checkbox"> Phone/desktop notification</label>
 <h3 style="margin-top:16px">Strat Trader link (read-only)</h3>
@@ -63,4 +77,4 @@
  <p class="note">Strat Master P.A never connects to Apex, Topstep, Tradovate or TradingView accounts and cannot place orders. Data is delayed (see Feed pill). Confirm price on your trading platform before entering.</p></div></section>
 </main>
 <div id="toast"></div><div id="modal" class="modal" hidden><div class="mbox"><div id="mtxt"></div><div class="mbtns"><button id="mskip" class="ghost">Skip</button><button id="mnext" class="primary">Next</button></div></div></div>
-<script src="vendor/lwc.js"></script><script src="strat.js"></script><script src="app.js"></script><script src="paste.js"></script></body></html>
+<script src="vendor/lwc.js"></script><script src="strat.js"></script><script src="learn.js"></script><script src="ai.js"></script><script src="app.js"></script><script src="paste.js"></script></body></html>
