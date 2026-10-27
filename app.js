@@ -60,6 +60,7 @@ function sigHTML(s, k) {
   const sp = Strat.SPEC[s.sym], L = s.dir === 'LONG', riskPts = Math.abs(s.entry - s.stop), rewPts = Math.abs(s.target - s.entry);
   const tk = x => Math.round(x / sp.tick), mx = Math.min(S.daily / 2, 150), z = Strat.size(mx, s, s.sym), rt = rating(s.conf), n1 = Math.max(1, z.contracts);
   return `<div class="plan ${L ? 'L' : 'S'}" data-k="${k ?? ''}"><div class="ptop"><span class="pdir ${L ? 'g' : 'r'}">${L ? 'BUY · LONG' : 'SELL · SHORT'} ${s.sym}</span><span class="conf ${rt[1]}">${rt[0]} idea</span></div>
+  ${s.ifTxt ? `<div class="iftxt ${L ? 'g' : 'r'}">${s.ifTxt} →</div>` : ''}${s.nonStrat ? '<div class="nonstrat">⚠️ Not a Strat setup — lower odds. Use only if it fits your plan.</div>' : ''}
   <div class="psub">${Strat.SPEC[s.sym].name} · ${S.tf} chart · ${fmtT(s.t)}</div>
   <div class="money"><span class="g">Win ${money(rewPts * sp.pv)}</span> / <span class="r">Risk ${money(riskPts * sp.pv)}</span> <small>per contract</small></div>
   <div class="pgrid"><div class="pbox e"><span>1 · ENTRY / <em>${OT(s).en}</em></span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy' : 'Sell'} stop order at ${fp(s.entry, s.sym)} (fills when price breaks ${L ? 'above' : 'below'})</i></div>

@@ -44,6 +44,26 @@
   }
   function backtest(bars, sym, opt) { const r = { win: 0, loss: 0, R: 0 }; for (let i = 3; i < bars.length - 1; i++) for (const s of scanAt(bars, i, sym, opt)) { const o = outcome(bars, s); if (o === 'win') { r.win++; r.R += s.rr; } else if (o === 'loss') { r.loss++; r.R -= 1; } } return r; }
   function size(acctRisk, s, sym) { const sp = SPEC[sym]; const perC = s.risk * sp.pv; return { perContract: perC, contracts: Math.max(0, Math.floor(acctRisk / perC)) }; }
-  const api = { SPEC, typ, scanAt, outcome, backtest, size, atr };
+  // Always-available conditional plans from the last closed candle: break above / break below.
+  function conditional(bars, sym, opt = {}) {
+    const minRR = opt.minRR || 1.5, sp = SPEC[sym] || { tick: 0.25, pv: 1 }, i = bars.length - 1; if (i < 1) return [];
+    const b = bars[i], strat = i >= 3 ? scanAt(bars, i, sym, opt) : [], A = atr(bars), out = [];
+    for (const dir of [1, -1]) {
+      const hit = strat.find(x => (x.dir === 'LONG') === (dir > 0));
+      const ifTxt = `IF price breaks ${dir > 0 ? 'ABOVE' : 'BELOW'} ${dir > 0 ? rnd(b.h + sp.tick, sp.tick) : rnd(b.l - sp.tick, sp.tick)}`;
+      if (hit) { out.push({ ...hit, ifTxt }); continue; }
+      const entry = rnd(dir > 0 ? b.h + sp.tick : b.l - sp.tick, sp.tick); let stop = rnd(dir > 0 ? b.l - sp.tick : b.h + sp.tick, sp.tick);
+      if (Math.abs(entry - stop) < 4 * sp.tick) stop = rnd(entry - dir * 4 * sp.tick, sp.tick);
+      const risk = Math.abs(entry - stop), tg = findTarget(bars, i, dir, entry, risk, minRR);
+      const target = tg ? rnd(tg.target, sp.tick) : rnd(entry + dir * 2 * risk, sp.tick), rr = +(Math.abs(target - entry) / risk).toFixed(2);
+      const typ1 = i >= 1 ? typ(b, bars[i - 1]) : '?', big = A && risk > 2.5 * A;
+      const notes = ['Not a Strat setup — this is just a break of the last candle (' + (typ1 === 1 ? 'inside bar' : typ1 === 3 ? 'outside bar' : 'directional bar') + ')'];
+      if (!tg) notes.push('no earlier price level far enough, so take profit is set at 2× the risk');
+      if (big) notes.push('the stop is unusually wide for this market');
+      out.push({ sym, dir: dir > 0 ? 'LONG' : 'SHORT', setup: 'last-candle break', entry, stop, target, rr, risk, conf: big ? 25 : 40, why: notes.join('; '), t: b.t, i, ifTxt, nonStrat: true });
+    }
+    return out.sort((x, y) => y.conf - x.conf);
+  }
+  const api = { conditional, findTarget, SPEC, typ, scanAt, outcome, backtest, size, atr };
   if (typeof module !== 'undefined') module.exports = api; else root.Strat = api;
 })(this);

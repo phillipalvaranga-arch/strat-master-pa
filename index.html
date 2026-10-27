@@ -13,6 +13,7 @@
 </section>
 <section id="paste" class="tab">
  <div class="now"><small>PASTE A CHART</small><b>Paste your chart and the app tells you where to get in, the stop loss and the take profit.</b></div>
+ <div id="pout"></div>
  <div class="card"><h3>Option 1 · Chart data (most accurate, free) <button class="help" data-h="csv">?</button></h3>
   <label>Contract<select id="pcsym"><option>MES</option><option>MNQ</option><option>MGC</option></select></label>
   <textarea id="pcsv" rows="5" placeholder="Paste TradingView exported data here (time,open,high,low,close…) or drop the .csv file"></textarea>
@@ -23,7 +24,6 @@
   <div class="pbtns"><label class="ghost filebtn">📷 Choose / take photo<input id="pimgfile" type="file" accept="image/*" hidden></label><button id="pimggo" class="primary">Read my picture</button></div>
   <p class="note" id="pkeynote"></p></div>
  <div class="card"><h3>Option 3 · Use the app's chart</h3><button id="pcur" class="ghost" style="width:100%;padding:14px">📈 Check the chart that is open in the app</button></div>
- <div id="pout"></div>
 </section>
 <section id="more" class="tab"><div class="morebtns">
  <button data-go="size">🧮 How many contracts?<small>Size calculator and today's limit</small></button>
