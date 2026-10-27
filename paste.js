@@ -80,7 +80,7 @@ Rules: entry = 1 tick beyond the trigger (last closed) candle's high for LONG or
     $('#pcur').onclick = () => appChart(S.sym, S.tf, '');
     $('#pimggo').onclick = async () => {
       if (!img) return out(warn('Paste, drop or choose a chart picture first.'));
-      if (!S.aiKey) { const pre = () => `<div class="bigwarn"><b>🔑 Your picture can't be read yet: no AI key</b><span>Reading a chart picture needs an AI key (More → Settings → Chart picture reading). <b>No key? No problem:</b> pick the contract and timeframe of your picture and the app uses its own live chart. The plans are below.</span></div>`;
+      if (!S.aiKey) { const pre = () => `<div class="bigwarn"><b>🔑 Your picture can't be read yet: no AI key</b><span>Reading a chart picture needs an AI key (More → Settings → Chart picture reading). <u>No key? No problem:</u> pick the contract and timeframe of your picture and the app uses its own live chart. The plans are below.</span></div>`;
         out(pre() + pickers()); bindPickers(() => pre() + pickers()); const o = $('#pout').innerHTML;
         try { const d = await load($('#fbsym').value, $('#fbtf').value); runScan(d.closed, $('#fbsym').value, 'App chart', pre() + pickers()); bindPickers(() => pre() + pickers()); } catch (e) { $('#pout').innerHTML = o + warn('Live chart not available: ' + e.message); }
         return; }

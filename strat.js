@@ -50,7 +50,7 @@
     const b = bars[i], strat = i >= 3 ? scanAt(bars, i, sym, opt) : [], A = atr(bars), out = [];
     for (const dir of [1, -1]) {
       const hit = strat.find(x => (x.dir === 'LONG') === (dir > 0));
-      const ifTxt = `IF price breaks ${dir > 0 ? 'ABOVE' : 'BELOW'} ${dir > 0 ? rnd(b.h + sp.tick, sp.tick) : rnd(b.l - sp.tick, sp.tick)}`;
+      const ifTxt = `IF price breaks ${dir > 0 ? 'ABOVE' : 'BELOW'} ${(dir > 0 ? rnd(b.h + sp.tick, sp.tick) : rnd(b.l - sp.tick, sp.tick)).toFixed(sp.tick < 0.25 ? 1 : 2)}`;
       if (hit) { out.push({ ...hit, ifTxt }); continue; }
       const entry = rnd(dir > 0 ? b.h + sp.tick : b.l - sp.tick, sp.tick); let stop = rnd(dir > 0 ? b.l - sp.tick : b.h + sp.tick, sp.tick);
       if (Math.abs(entry - stop) < 4 * sp.tick) stop = rnd(entry - dir * 4 * sp.tick, sp.tick);
