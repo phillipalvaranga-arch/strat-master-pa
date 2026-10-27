@@ -138,7 +138,7 @@ $('#lf').onsubmit = e => {
 $('#exportlog').onclick = () => { const c = 'time_ct,symbol,side,qty,entry,exit,pnl,note\n' + S.log.map(x => [new Date(x.ts).toLocaleString('en-US', CT).replace(',', ''), x.sym, x.dir, x.qty, x.entry, x.exit ?? '', x.pnl ?? '', '"' + (x.note || '').replace(/"/g, "'") + '"'].join(',')).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], { type: 'text/csv' })); a.download = 'strat-master-trades.csv'; a.click(); };
 
 // ---- ui
-function tab(t) { const navT = ['size', 'st', 'signals', 'settings'].includes(t) ? 'more' : t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === navT)); scrollTo(0, 0); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'home') scanAll(); if (t === 'signals') track(); if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
+function tab(t) { const navT = ['size', 'st', 'signals', 'settings'].includes(t) ? 'more' : t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === navT)); scrollTo(0, 0); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'home') scanAll(); if (t === 'paste' && window.pasteInit) pasteInit(); if (t === 'signals') track(); if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => tab(b.dataset.t));
 function renderSegs() {
   $('#syms').innerHTML = SYMS.map(s => `<button class="${s === S.sym ? 'on' : ''}">${s}</button>`).join(''); $('#tfs').innerHTML = TFS.map(s => `<button class="${s === S.tf ? 'on' : ''}">${s}</button>`).join('');
@@ -196,6 +196,8 @@ const HELP = { tf: 'This is how long each candle on the chart lasts. 5m = 5 minu
   risk: 'Your daily stop is the most you allow yourself to lose in one day (default $300). When it is used up, stop trading until tomorrow. Log your trades so this stays accurate.',
   size: 'Type where you will get in and where your stop loss goes. The app tells you how many contracts keep your loss under the amount you choose.',
   log: 'After a trade, write down where you got in and out. The app works out your profit or loss, how often you win, and keeps your daily limit up to date.',
+  csv: 'Most accurate way. In TradingView: open your chart → click the arrow next to the chart layout name (top right) → Export chart data… → Export. Open the .csv file here (or open it in Notepad, copy all, paste in the box). Pick the contract, then tap Read my data. No AI key needed.',
+  img: 'Paste a screenshot (Ctrl+V on the PC, or choose/take a photo on the phone). An AI reads the candles and price scale, so prices can be off — always check them on your chart. Needs your own AI key in More → Settings (about 1 cent or less per picture).',
   track: 'This tests the same kind of trade ideas on recent price history. A negative number means they would have lost money if you took every one, so be picky and favor Strong ideas.' };
 document.querySelectorAll('.help').forEach(b => b.onclick = ev => { ev.stopPropagation(); showModal([HELP[b.dataset.h]]); });
 const GUIDE = ['<h2>Welcome to Strat Master P.A 👋</h2><p>This app <b>suggests</b> trades on MES, MNQ and MGC. It never trades for you — <b>you</b> place every trade yourself on your platform.</p>',
