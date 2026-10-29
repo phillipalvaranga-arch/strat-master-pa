@@ -5,7 +5,7 @@
   const hourCT = t => +new Date(t * 1000).toLocaleString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hourCycle: 'h23' });
   const hrLbl = h => { const f = x => (x % 12 || 12) + (x < 12 ? ' AM' : ' PM'); return f(h) + '–' + f((h + 1) % 24); };
   const htfOf = w => /disagrees/.test(w || '') ? 'against' : /agrees/.test(w || '') ? 'with' : 'none';
-  const normSetup = x => { x = String(x || ''); return /3-1-2/.test(x) ? '3-1-2' : /2-1-2/.test(x) ? '2-1-2' : /2-2/.test(x) ? '2-2 reversal' : x ? 'other' : 'unknown'; };
+  const normSetup = x => { x = String(x || ''); return /3-1-2/.test(x) ? '3-1-2' : /1-2-2/.test(x) ? '1-2-2' : /3-2-2/.test(x) ? '3-2-2' : /2-1-2/.test(x) ? '2-1-2' : /2-2/.test(x) ? '2-2' : x ? 'other' : 'unknown'; };
   const normTf = x => { x = String(x || '').toLowerCase(); if (/^(1d|d|day|1440)/.test(x)) return '1d'; const m = x.match(/\d+/); return m ? (m[0] === '1440' ? '1d' : m[0] + 'm') : 'unknown'; };
   // ---- records
   function trackRecords(barsBy, htfBy) { // barsBy[sym][tf] = closed bars

@@ -56,3 +56,12 @@ textarea{width:100%;background:var(--pan2);border:1px solid var(--bd);color:var(
 .aiitem{border:1px solid #333a4a;border-radius:10px;padding:10px;margin:10px 0}.airule{margin:6px 0}.aih{border-bottom:1px solid #2a2f3a;padding:8px 0}.aih.old{opacity:.5}
 .aitags{display:flex;flex-direction:column;gap:4px;margin:6px 0}.aitag{font-size:13px;padding:4px 8px;border-radius:6px;background:#1f1a33;border:1px solid #4b3f8a}.aitag.g{border-color:#2f7a4a}.aitag.r{border-color:#a33}.aitag.a{border-color:#a77a20}
 .aion ul{margin:6px 0;padding-left:18px}#aitxt{width:100%;font-size:15px}.row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+
+.stbadges{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.stbadges .badge{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--pan2);border:1px solid var(--bd);color:var(--mu)}
+.stbadges .badge.half{color:var(--a);border-color:#6b5320}
+.stbadges .bayes{font-size:12px;padding:3px 9px;border-radius:99px;font-weight:800}
+.sug{border-left:4px solid var(--a);padding:10px;margin:10px 0;background:var(--pan2);border-radius:0 10px 10px 0}
+.sug .ev{white-space:pre-wrap;font-size:12px;color:var(--mu);max-height:180px;overflow:auto}
+.chkrow{display:flex;flex-wrap:wrap;gap:8px 14px;margin:8px 0}
+.chkrow .chk{margin:0}

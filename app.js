@@ -1,7 +1,17 @@
 // Strat Master P.A — signal-only. No broker connection, no order placement anywhere in this code.
 const $ = s => document.querySelector(s), SYMS = ['MES', 'MNQ', 'MGC'], TFS = ['5m', '15m', '30m', '60m', '1d'], TFS_S = { '5m': 300, '15m': 900, '30m': 1800, '60m': 3600, '1d': 86400 };
 const RAW = 'https://raw.githubusercontent.com/phillipalvaranga-arch/strat-master-pa/data/', RELAY = '';
-const st = JSON.parse(localStorage.smpa || '{}'); const S = Object.assign({ sym: 'MES', tf: '5m', minRR: 1.5, daily: 300, minConf: 55, sound: true, notif: false, log: [], seen: {}, learnOn: true, learnReset: 0 }, st);
+const st = JSON.parse(localStorage.smpa || '{}'); const S = Object.assign({
+  sym: 'MES', tf: '5m', minRR: 1.5, daily: 300, minConf: 55, sound: true, notif: false, log: [], seen: {}, learnOn: true, learnReset: 0,
+  combos: ['2-1-2', '3-1-2', '2-2', '1-2-2', '3-2-2'], longCandleMult: 1.5, requireCont: false,
+  disabled: [], dismissed: [], flattenRemind: true, newsOn: false, newsTimes: [],
+  longCandleMultBySymbol: {}
+}, st);
+if (!Array.isArray(S.combos) || !S.combos.length) S.combos = ['2-1-2', '3-1-2', '2-2', '1-2-2', '3-2-2'];
+if (!Array.isArray(S.disabled)) S.disabled = [];
+if (!Array.isArray(S.dismissed)) S.dismissed = [];
+if (!Array.isArray(S.newsTimes)) S.newsTimes = [];
+if (!S.longCandleMultBySymbol) S.longCandleMultBySymbol = {};
 const save = () => localStorage.smpa = JSON.stringify(S);
 const CT = { timeZone: 'America/Chicago' };
 const fmtT = t => new Date(t * 1000).toLocaleString('en-US', { ...CT, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT';
@@ -23,10 +33,25 @@ async function load(sym, tf) {
   return cache[sym + tf] = { bars, closed };
 }
 const htfOf = tf => ({ '5m': '30m', '15m': '60m', '30m': '60m', '60m': '1d', '1d': null })[tf];
+async function contBarsFor(sym) {
+  // Last closed bar open from 15m, 60m, Daily — Strat Trader continuity TFs.
+  const out = [];
+  for (const tf of ['15m', '60m', '1d']) {
+    try { const d = cache[sym + tf] || await load(sym, tf); const B = d.closed; if (B.length) out.push(B[B.length - 1]); else out.push(null); }
+    catch { out.push(null); }
+  }
+  return out;
+}
+function scanOpts(sym, htf) {
+  const mult = S.longCandleMultBySymbol[sym] ?? S.longCandleMult ?? 1.5;
+  return { minRR: +S.minRR, htf, combos: S.combos, longCandleMult: +mult, requireCont: !!S.requireCont, rangeLookback: 20 };
+}
 async function scan(sym, tf) {
   const d = await load(sym, tf), h = htfOf(tf) ? (await load(sym, htfOf(tf))).closed : null;
   const B = d.closed, i = B.length - 1; if (i < 3) return { sigs: [], d };
-  return { sigs: Strat.scanAt(B, i, sym, { minRR: +S.minRR, htf: h }).map(x => ({ ...x, tf })), d };
+  const contBars = await contBarsFor(sym);
+  const opts = { ...scanOpts(sym, h), contBars };
+  return { sigs: Strat.scanAt(B, i, sym, opts).map(x => ({ ...x, tf })), d };
 }
 
 // ---- chart
@@ -64,6 +89,7 @@ function sigHTML(s, k) {
   return `<div class="plan ${L ? 'L' : 'S'}" data-k="${k ?? ''}"><div class="ptop"><span class="pdir ${L ? 'g' : 'r'}">${L ? 'BUY · LONG' : 'SELL · SHORT'} ${s.sym}</span><span class="conf ${rt[1]}">${rt[0]} idea</span></div>
   ${s.ifTxt ? `<div class="iftxt ${L ? 'g' : 'r'}">${s.ifTxt} →</div>` : ''}${s.nonStrat ? '<div class="nonstrat">⚠️ Not a Strat setup — lower odds. Use only if it fits your plan.</div>' : ''}
   ${s.learn ? `<details class="learntag"><summary>🧠 Adjusted by your results${s.learn.delta ? ` (${s.learn.delta > 0 ? '+' : ''}${s.learn.delta})` : ''} — why?</summary><ul>${s.learn.why.map(w => `<li>${w}</li>`).join('')}${s.learn.hideWhy ? `<li class="r">${s.learn.hideWhy} — normally hidden</li>` : ''}</ul></details>` : ''}${s.ai ? `<div class="aitags">${s.ai.map(n => `<span class="aitag ${n.c}">🤖 ${n.t}</span>`).join('')}</div>` : ''}${s.hourWarn ? `<div class="nonstrat">⏰ ${s.hourWarn}</div>` : ''}
+  <div class="stbadges">${s.bayes != null ? `<span class="bayes conf" style="background:${s.bayes >= 65 ? '#22c55e' : s.bayes <= 40 ? '#ef4444' : '#f5b942'};color:#111">Bayes ${s.bayes}</span>` : ''}${Number.isFinite(s.cont) ? `<span class="badge">Continuity ${s.cont}/3${s.contDir ? ' ' + s.contDir : ''}</span>` : ''}${s.half ? `<span class="badge half">50% target (long candle)</span>` : s.half === false ? `<span class="badge">Full target</span>` : ''}<span class="badge">${s.setup || s.combo || ''}</span></div>
   <div class="psub">${Strat.SPEC[s.sym].name} · ${S.tf} chart · ${fmtT(s.t)}</div>
   <div class="money"><span class="g">Win ${money(rewPts * sp.pv)}</span> / <span class="r">Risk ${money(riskPts * sp.pv)}</span> <small>per contract</small></div>
   <div class="pgrid"><div class="pbox e"><span>1 · ENTRY / <em>${OT(s).en}</em></span><b>${fp(s.entry, s.sym)}</b><i>${L ? 'Buy' : 'Sell'} stop order at ${fp(s.entry, s.sym)} (fills when price breaks ${L ? 'above' : 'below'})</i></div>
@@ -78,7 +104,11 @@ const rating = c => c >= 70 ? ['Strong', 'g'] : c >= 55 ? ['Okay', 'a'] : ['Weak
 const plain = s => (s.dir === 'LONG' ? 'Price paused, and a move above ' + fp(s.entry, s.sym) + ' would show buyers taking over.' : 'Price paused, and a move below ' + fp(s.entry, s.sym) + ' would show sellers taking over.') + (/agrees/.test(s.why) ? ' The bigger trend agrees (good).' : /disagrees/.test(s.why) ? ' The bigger trend points the other way (be careful).' : '') + ' Take profit is at an earlier price level.';
 function bindPlans(root, list) { root.querySelectorAll('.plan').forEach((el, i) => { el.querySelector('.logbtn').onclick = ev => { ev.stopPropagation(); prefillLog(list[i]); }; const cb = el.querySelector('.chartbtn'); if (cb) cb.onclick = ev => { ev.stopPropagation(); active = list[i]; S.sym = active.sym; save(); tab('chart'); renderSegs(); drawChart(); }; }); }
 function prefillLog(s) { const f = $('#lf'), z = Strat.size(Math.min(S.daily / 2, 150), s, s.sym); f.sym.value = s.sym; f.dir.value = s.dir; f.qty.value = Math.max(1, z.contracts); f.entry.value = s.entry; f.exit.value = '';
-  f.note.value = `${s.setup} ${s.sym} ${S.tf} · Entry ${OT(s).en} ${fp(s.entry, s.sym)} · SL ${OT(s).sl} ${fp(s.stop, s.sym)} · TP ${OT(s).tp} ${fp(s.target, s.sym)} · ${s.rr}:1`; tab('log'); f.exit.focus(); toast('Trade plan copied to the log — add your exit when done'); }
+  if (f.stop) f.stop.value = s.stop; if (f.target) f.target.value = s.target;
+  if (f.combo) f.combo.value = (s.combo || s.setup || '').replace(' reversal', '');
+  if (f.tf) f.tf.value = s.tf || S.tf; if (f.cont) f.cont.value = Number.isFinite(s.cont) ? String(s.cont) : '';
+  if (f.half) f.half.value = s.half === true ? '1' : s.half === false ? '0' : '';
+  f.note.value = `${s.setup || s.combo} ${s.sym} ${s.tf || S.tf} · Entry ${OT(s).en} ${fp(s.entry, s.sym)} · SL ${OT(s).sl} ${fp(s.stop, s.sym)} · TP ${OT(s).tp} ${fp(s.target, s.sym)} · ${s.rr}:1`; tab('log'); f.exit.focus(); toast('Trade plan copied to My Trades — add your exit when done'); }
 function updFeed() {
   const f = $('#feed'); f.textContent = feed.src.split('·')[0] + ' · ' + (feed.age < 120 ? feed.age + 'm old' : 'market closed / stale');
   f.className = 'pill ' + (feed.age <= 15 ? 'g' : feed.age <= 40 ? 'a' : 'r'); f.title = feed.src;
@@ -87,8 +117,19 @@ function updFeed() {
 // ---- scanner + alerts
 async function scanAll() {
   const all = []; for (const s of SYMS) { try { all.push(...(await scan(s, S.tf)).sigs); } catch (e) { console.warn(e); } }
-  let ideas = (S.learnOn ? all.map(x => Learn.apply(x, S.tf)) : all).map(AIA.apply); const hid = ideas.filter(x => x.hidden); if (!S.showHidden) ideas = ideas.filter(x => !x.hidden);
-  ideas.sort((a, b) => b.conf - a.conf); all.length = 0; all.push(...ideas);
+  const journal = STFeat.fromLog(S.log);
+  let ideas = (S.learnOn ? all.map(x => Learn.apply(x, S.tf)) : all).map(AIA.apply);
+  ideas = ideas.map(x => {
+    const off = STFeat.isDisabled(x, S); if (off) { x.hidden = true; x.stDisable = off; }
+    const bay = STFeat.confidence({ combo: x.combo || x.setup, sym: x.sym, setup: x.setup }, journal);
+    x.bayes = bay.score; x.bayesN = bay.n;
+    // Blend: keep Strong/Okay/Weak from conf, but nudge conf toward Bayesian when sample exists
+    if (bay.n >= 5) x.conf = Math.round(0.7 * x.conf + 0.3 * bay.score);
+    return x;
+  });
+  if (inNewsBlackout()) { ideas.forEach(x => { x.hourWarn = (x.hourWarn ? x.hourWarn + ' · ' : '') + 'News blackout window — skip new entries.'; }); }
+  const hid = ideas.filter(x => x.hidden); if (!S.showHidden) ideas = ideas.filter(x => !x.hidden);
+  ideas.sort((a, b) => (b.bayes || b.conf) - (a.bayes || a.conf)); all.length = 0; all.push(...ideas);
   setTimeout(() => { const hb = $('#hidnote'); if (hb) hb.remove(); if (hid.length) $('#siglist').insertAdjacentHTML('beforeend', `<div id="hidnote" class="note card">🧠 ${hid.length} idea(s) ${S.showHidden ? 'shown even though' : 'hidden because'} your results say they lose (${hid.map(x => x.learn.hideWhy).join('; ')}). <button class="ghost" id="togglehid">${S.showHidden ? 'Hide them' : 'Show anyway'}</button></div>`); const t = $('#togglehid'); if (t) t.onclick = () => { S.showHidden = !S.showHidden; save(); scanAll(); }; }, 0);
   $('#siglist').innerHTML = all.map((x, k) => sigHTML(x, k)).join(''); bindPlans($('#siglist'), all);
   const lim = S.daily + Math.min(0, todayPnl()) <= 0, b = all[0];
@@ -133,18 +174,24 @@ function renderLog() {
   const done = S.log.filter(x => x.pnl != null), w = done.filter(x => x.pnl > 0), l = done.filter(x => x.pnl < 0), net = done.reduce((a, x) => a + x.pnl, 0);
   const gw = w.reduce((a, x) => a + x.pnl, 0), gl = -l.reduce((a, x) => a + x.pnl, 0);
   $('#stats').innerHTML = `<div class="statg"><div><span>Trades</span><b>${done.length}</b></div><div><span>Win rate</span><b>${done.length ? (w.length / done.length * 100).toFixed(0) : 0}%</b></div><div><span>Net P&L</span><b class="${net >= 0 ? 'g' : 'r'}">${money(net)}</b></div><div><span>Avg win</span><b class="g">${money(w.length ? gw / w.length : 0)}</b></div><div><span>Avg loss</span><b class="r">${money(l.length ? -gl / l.length : 0)}</b></div><div><span>Profit factor</span><b>${gl ? (gw / gl).toFixed(2) : '—'}</b></div></div>`;
-  $('#loglist').innerHTML = S.log.length ? `<div class="card"><table><tr><th>When (CT)</th><th>Trade</th><th>In → Out</th><th>P&L</th><th></th></tr>${S.log.slice().reverse().map(x => `<tr><td>${new Date(x.ts).toLocaleString('en-US', { ...CT, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td><td>${x.dir} ${x.qty} ${x.sym}<div class="note">${x.note || ''}</div></td><td>${x.entry} → ${x.exit ?? 'open'}</td><td class="${x.pnl > 0 ? 'g' : x.pnl < 0 ? 'r' : ''}">${x.pnl == null ? '—' : money(x.pnl)}</td><td><button data-id="${x.ts}">✕</button></td></tr>`).join('')}</table></div>` : '';
+  $('#loglist').innerHTML = S.log.length ? `<div class="card"><table><tr><th>When (CT)</th><th>Trade</th><th>In → Out</th><th>P&L</th><th></th></tr>${S.log.slice().reverse().map(x => `<tr><td>${new Date(x.ts).toLocaleString('en-US', { ...CT, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td><td>${x.dir} ${x.qty} ${x.sym}${x.combo ? ' · ' + x.combo : ''}${x.tf ? ' ' + x.tf : ''}${Number.isFinite(x.cont) ? ' · c' + x.cont : ''}<div class="note">${x.note || ''}</div></td><td>${x.entry}${x.stop != null ? ' / SL ' + x.stop : ''} → ${x.exit ?? 'open'}</td><td class="${x.pnl > 0 ? 'g' : x.pnl < 0 ? 'r' : ''}">${x.pnl == null ? '—' : money(x.pnl)}</td><td><button data-id="${x.ts}">✕</button></td></tr>`).join('')}</table></div>` : '';
   $('#loglist').querySelectorAll('button').forEach(b => b.onclick = () => { if (confirm('Delete this trade?')) { S.log = S.log.filter(x => x.ts != b.dataset.id); save(); renderLog(); renderRisk(); } });
 }
 $('#lf').onsubmit = e => {
   e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); const pv = Strat.SPEC[f.sym].pv, q = +f.qty || 1;
   const pnl = f.exit === '' ? null : +(((+f.exit - +f.entry) * (f.dir === 'LONG' ? 1 : -1) * pv * q) - (+f.fees || 0) * q).toFixed(2);
-  S.log.push({ ts: Date.now(), day: ctDay(), sym: f.sym, dir: f.dir, qty: q, entry: +f.entry, exit: f.exit === '' ? null : +f.exit, pnl, note: f.note }); save(); e.target.reset(); renderLog(); renderRisk(); refreshLearn(); toast(pnl == null ? 'Saved (open)' : 'Saved: ' + money(pnl));
+  const stop = f.stop === '' || f.stop == null ? null : +f.stop, target = f.target === '' || f.target == null ? null : +f.target;
+  const half = f.half === '1' ? true : f.half === '0' ? false : null;
+  const cont = f.cont === '' || f.cont == null ? null : +f.cont;
+  S.log.push({ ts: Date.now(), day: ctDay(), sym: f.sym, dir: f.dir, qty: q, entry: +f.entry, exit: f.exit === '' ? null : +f.exit, stop, target, pnl,
+    combo: f.combo || undefined, tf: f.tf || S.tf, cont, half, note: f.note });
+  save(); e.target.reset(); renderLog(); renderRisk(); refreshLearn(); renderLocalStats(); renderSugs();
+  toast(pnl == null ? 'Saved (open)' : 'Saved: ' + money(pnl));
 };
-$('#exportlog').onclick = () => { const c = 'time_ct,symbol,side,qty,entry,exit,pnl,note\n' + S.log.map(x => [new Date(x.ts).toLocaleString('en-US', CT).replace(',', ''), x.sym, x.dir, x.qty, x.entry, x.exit ?? '', x.pnl ?? '', '"' + (x.note || '').replace(/"/g, "'") + '"'].join(',')).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], { type: 'text/csv' })); a.download = 'strat-master-trades.csv'; a.click(); };
+$('#exportlog').onclick = () => { const c = ['time_ct,symbol,side,qty,entry,exit,pnl,note', ...S.log.map(x => [new Date(x.ts).toLocaleString('en-US', CT).replace(',', ''), x.sym, x.dir, x.qty, x.entry, x.exit ?? '', x.pnl ?? '', '"' + (x.note || '').replace(/"/g, "'") + '"'].join(','))].join(String.fromCharCode(10)); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], { type: 'text/csv' })); a.download = 'strat-master-trades.csv'; a.click(); };
 
 // ---- ui
-function tab(t) { const navT = ['size', 'st', 'signals', 'settings', 'ai'].includes(t) ? 'more' : t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === navT)); scrollTo(0, 0); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'home') scanAll(); if (t === 'paste' && window.pasteInit) pasteInit(); if (t === 'signals') track(); if (t === 'size') renderRisk(); if (t === 'st') loadST(); }
+function tab(t) { const navT = ['size', 'st', 'signals', 'settings', 'ai', 'ststats', 'sugs', 'apex'].includes(t) ? 'more' : t; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === navT)); scrollTo(0, 0); document.querySelectorAll('.tab').forEach(s => s.classList.toggle('on', s.id === t)); if (t === 'home') scanAll(); if (t === 'paste' && window.pasteInit) pasteInit(); if (t === 'signals') track(); if (t === 'size') renderRisk(); if (t === 'st') loadST(); if (t === 'ststats') renderLocalStats(); if (t === 'sugs') renderSugs(); if (t === 'apex') renderApex(); if (t === 'log') renderLog(); }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => tab(b.dataset.t));
 function renderSegs() {
   $('#syms').innerHTML = SYMS.map(s => `<button class="${s === S.sym ? 'on' : ''}">${s}</button>`).join(''); $('#tfs').innerHTML = TFS.map(s => `<button class="${s === S.tf ? 'on' : ''}">${s}</button>`).join('');
@@ -176,23 +223,22 @@ function analyze(trades) {
 }
 const tbl = (title, rows) => rows.length ? `<h4 style="margin:12px 0 4px">${title}</h4><table><tr><th></th><th>Trades</th><th>Win %</th><th>Avg R</th><th>P&L</th></tr>${rows.map(r => `<tr><td>${r.k}</td><td>${r.n}</td><td>${r.wr.toFixed(0)}%</td><td>${r.avgR == null ? '—' : r.avgR.toFixed(2)}</td><td class="${r.pnl >= 0 ? 'g' : 'r'}">${money(r.pnl)}</td></tr>`).join('')}</table>` : '';
 async function loadST() {
-  const c = $('#stconn');
-  const local = S.log.filter(x => x.pnl != null).map(x => ({ t: new Date(x.ts).toISOString(), sym: x.sym, side: x.dir, entry: x.entry, pnl: x.pnl, taken: true, source: 'Strat Master log', combo: (x.note || '').match(/\d-\d(-\d)?/)?.[0] }));
-  let j = [], sg = [];
-  if (!S.stUrl || !S.stKey) c.innerHTML = 'Not linked yet. In <b>Settings → Strat Trader link</b>, enter your Strat Trader URL and dashboard password. Showing this app\'s own log only.';
-  else { c.textContent = 'Loading from Strat Trader…'; try { [j, sg] = await Promise.all([stGet('/api/journal'), stGet('/api/suggestions').catch(() => [])]); c.innerHTML = `<span class="g">Linked (read-only)</span> · ${j.length} records from Strat Trader · ${new Date().toLocaleTimeString('en-US', { ...CT, hour: 'numeric', minute: '2-digit' })} CT`; }
-    catch (e) { c.innerHTML = `<span class="r">Could not reach Strat Trader: ${e.message}.</span> If it's on Render's free plan it may be asleep — wait 1 minute and reopen this tab.`; } }
-  const A = analyze([...j, ...local]), s = A.all;
-  $('#stana').innerHTML = `<div class="statg"><div><span>Closed trades</span><b>${s.n}</b></div><div><span>Win rate</span><b>${s.wr.toFixed(0)}%</b></div><div><span>Net P&L</span><b class="${s.pnl >= 0 ? 'g' : 'r'}">${money(s.pnl)}</b></div><div><span>Avg R per trade</span><b>${s.avgR == null ? '—' : s.avgR.toFixed(2)}</b></div><div><span>Avg planned R:R</span><b class="${A.avgPlanRR >= 1.5 ? 'g' : 'r'}">${A.avgPlanRR == null ? '—' : A.avgPlanRR.toFixed(2) + ':1'}</b></div></div>` + tbl('By instrument', A.sym) + tbl('By setup', A.combo) + tbl('By hour (CT)', A.hour) + tbl('By timeframe', A.tf) + tbl('By source', A.src);
-  const tips = [];
-  if (s.n < 20) tips.push(`Only ${s.n} closed trades — results need 20–30+ before trusting any pattern.`);
-  if (A.nRR && A.lowRR / A.nRR > .3) tips.push(`${A.lowRR} of ${A.nRR} alerts had a target under 1.5:1 reward:risk. Skip those or use a farther target — this is why a 67% win rate broke even.`);
-  if (s.wr > 55 && s.avgR != null && s.avgR <= 0.05) tips.push('High win rate but ~0R average: losses are bigger than wins. Widen targets or tighten stops.');
-  for (const [name, arr] of [['setup', A.combo], ['instrument', A.sym], ['hour', A.hour]]) { const q = arr.filter(r => r.n >= 5); if (q.length > 1) { tips.push(`Best ${name}: <b class="g">${q[0].k}</b> (${q[0].n} trades, ${money(q[0].pnl)}). Weakest: <b class="r">${q[q.length - 1].k}</b> (${q[q.length - 1].n} trades, ${money(q[q.length - 1].pnl)}).`); } }
-  (Array.isArray(sg) ? sg : []).slice(0, 5).forEach(x => tips.push('Strat Trader: ' + (x.text || JSON.stringify(x))));
-  $('#stsug').innerHTML = tips.length ? '<ul>' + tips.map(t => `<li>${t}</li>`).join('') + '</ul>' : '<span class="note">Not enough data yet.</span>';
-  const al = j.filter(t => t.source === 'alert').sort((a, b) => (b.t || '').localeCompare(a.t || '')).slice(0, 25);
-  $('#stalerts').innerHTML = al.length ? `<table><tr><th>When (CT)</th><th>Alert</th><th>Entry/Stop/Target</th><th>R:R</th><th>Result</th></tr>${al.map(t => { const rr = t.target && t.stop && t.entry !== t.stop ? Math.abs(t.target - t.entry) / Math.abs(t.entry - t.stop) : null; return `<tr><td>${new Date(t.t).toLocaleString('en-US', { ...CT, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td><td class="${/buy|long/i.test(t.side) ? 'g' : 'r'}">${t.side || ''} ${t.symbol || ''} ${t.combo || ''} ${t.timeframe || ''}</td><td>${t.entry ?? '—'} / ${t.stop ?? '—'} / ${t.target ?? '—'}</td><td class="${rr >= 1.5 ? 'g' : 'r'}">${rr ? rr.toFixed(2) : '—'}</td><td>${t.taken === false ? 'skipped' : t.outcome ? t.outcome + (Number.isFinite(t.pnl) ? ' ' + money(t.pnl) : '') : 'not logged'}</td></tr>`; }).join('')}</table>` : '<span class="note">No alerts received yet.</span>';
+  const c = $('#stconn'), alEl = $('#stalerts');
+  if (!S.stUrl || !S.stKey) {
+    c.innerHTML = 'Not linked yet. In <b>More → Settings</b>, enter your Strat Trader URL and dashboard password to see webhook alerts here.';
+    alEl.innerHTML = '<span class="note">Link Strat Trader to see live alerts. Your journal stays in My Trades.</span>';
+    return;
+  }
+  c.textContent = 'Loading alerts from Strat Trader…';
+  try {
+    const j = await stGet('/api/journal');
+    c.innerHTML = `<span class="g">Linked (read-only)</span> · ${j.length} records visible · ${new Date().toLocaleTimeString('en-US', { ...CT, hour: 'numeric', minute: '2-digit' })} CT · journal is NOT copied into My Trades`;
+    const al = j.filter(t => t.source === 'alert' || t.entry != null).sort((a, b) => (b.t || '').localeCompare(a.t || '')).slice(0, 40);
+    alEl.innerHTML = al.length ? `<table><tr><th>When (CT)</th><th>Alert</th><th>Entry/Stop/Target</th><th>R:R</th><th>Logged there</th></tr>${al.map(t => { const rr = t.target && t.stop && t.entry !== t.stop ? Math.abs(t.target - t.entry) / Math.abs(t.entry - t.stop) : null; return `<tr><td>${new Date(t.t).toLocaleString('en-US', { ...CT, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td><td class="${/buy|long/i.test(t.side) ? 'g' : 'r'}">${t.side || ''} ${t.symbol || ''} ${t.combo || ''} ${t.timeframe || ''}${t.cont != null ? ' · c' + t.cont : ''}${t.half ? ' · 50%' : ''}</td><td>${t.entry ?? '—'} / ${t.stop ?? '—'} / ${t.target ?? '—'}</td><td class="${rr >= 1.5 ? 'g' : 'r'}">${rr ? rr.toFixed(2) : '—'}</td><td>${t.taken === false ? 'skipped' : t.outcome ? t.outcome + (Number.isFinite(t.pnl) ? ' ' + money(t.pnl) : '') : '—'}</td></tr>`; }).join('')}</table>` : '<span class="note">No alerts received yet on Strat Trader.</span>';
+  } catch (e) {
+    c.innerHTML = `<span class="r">Could not reach Strat Trader: ${e.message}.</span> If it is on Render it may be asleep — wait a minute and reopen.`;
+    alEl.innerHTML = '';
+  }
 }
 setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString('en-US', { ...CT, hour: 'numeric', minute: '2-digit' }) + ' CT'; }, 1000);
 initChart(); renderSegs(); drawChart().catch(e => toast('Data load failed: ' + e.message)); renderLog(); renderRisk();
@@ -201,14 +247,14 @@ document.querySelectorAll('.morebtns [data-go]').forEach(b => b.onclick = () => 
 const HELP = { tf: 'This is how long each candle on the chart lasts. 5m = 5 minutes. Shorter = more ideas but more noise. 30m and 60m give fewer, slower ideas.',
   risk: 'Your daily stop is the most you allow yourself to lose in one day (default $300). When it is used up, stop trading until tomorrow. Log your trades so this stays accurate.',
   size: 'Type where you will get in and where your stop loss goes. The app tells you how many contracts keep your loss under the amount you choose.',
-  log: 'After a trade, write down where you got in and out. The app works out your profit or loss, how often you win, and keeps your daily limit up to date.',
+  log: 'After a trade, write it in My Trades (this app\'s own journal — separate from Strat Trader). Fill setup, stop and exit so stats and R-multiples stay accurate. The app updates your win rate and $300 daily stop.',
   csv: 'Most accurate way. In TradingView: open your chart → click the arrow next to the chart layout name (top right) → Export chart data… → Export. Open the .csv file here (or open it in Notepad, copy all, paste in the box). Pick the contract, then tap Read my data. No AI key needed.',
   img: 'Paste a screenshot (Ctrl+V on the PC, or choose/take a photo on the phone). An AI reads the candles and price scale, so prices can be off — always check them on your chart. Needs your own AI key in More → Settings (about 1 cent or less per picture).',
   learn: 'The app studies how its ideas did on recent prices, plus trades you log here and in Strat Trader. It then rates ideas higher or lower, hides combos that keep losing (only after 8+ results), and can move the take profit (1.5–3× risk) or stop toward what worked. Your own trades count 3× more. Turn it off or reset it in More → Settings.',
   ai: 'Copy an analysis from the Claude or ChatGPT app and paste it here. The app picks out the direction (long/short, bullish/bearish), entry, stop, target, support/resistance levels, timeframe and rules like "avoid MGC before 9:30". Check and fix anything on the confirm screen, then Apply. Ideas that agree get rated higher, ones that conflict get flagged, and levels are drawn on the chart. It expires when you choose (default: end of today).',
   track: 'This tests the same kind of trade ideas on recent price history. A negative number means they would have lost money if you took every one, so be picky and favor Strong ideas.' };
 document.querySelectorAll('.help').forEach(b => b.onclick = ev => { ev.stopPropagation(); showModal([HELP[b.dataset.h]]); });
-const GUIDE = ['<h2>Welcome to Strat Master P.A 👋</h2><p>This app <b>suggests</b> trades on MES, MNQ and MGC. It never trades for you — <b>you</b> place every trade yourself on your platform.</p>',
+const GUIDE = ['<h2>Welcome to Strat Master P.A 👋</h2><p>This app <b>suggests</b> trades on MES, MNQ and MGC using Strat setups (2-1-2, 3-1-2, 2-2, 1-2-2, 3-2-2). It never trades for you — <b>you</b> place every trade yourself.</p>',
   '<h2>Home tells you what to do</h2><p>The top box says in one sentence: <b>wait</b>, or a possible trade with exact prices.</p><p><span class="be">Blue = get in</span> · <span class="r">Red = stop loss</span> · <span class="g">Green = take profit</span></p>',
   '<h2>Every idea has a plan</h2><p>1 · <b class="be">Get in at</b> — 2 · <b class="r">Stop loss</b> — 3 · <b class="g">Take profit</b>.</p><p>Ideas are rated <b class="g">Strong</b>, <b class="a">Okay</b> or <b class="r">Weak</b>, and show what you could <b class="g">win</b> vs <b class="r">risk</b>.</p>',
   '<h2>Stay safe</h2><p>Prices are about <b>10–25 minutes delayed</b> — always check the live price on your platform first.</p><p>After each trade tap <b>📝 I took this trade</b> so your results and $300 daily stop stay up to date. Tap <b>?</b> anywhere for help.</p>'];
@@ -274,4 +320,100 @@ function renderAI() {
   const act = AIA.active(); $('#aiactive').innerHTML = act.length ? `<div class="card aion"><b>🤖 Using ${act.length} item(s) from ${[...new Set(act.map(a => a.src))].join(' & ')}</b><ul>${act.slice(0, 5).map(a => `<li>${desc(a)}</li>`).join('')}</ul><span class="note">Until ${DT(Math.min(...act.map(a => a.exp)))} · manage in More → AI Analysis</span></div>` : '';
 }
 renderAI(); setInterval(renderAI, 60000);
+
+// ---- Strat Trader attributes: local stats / suggestions / Apex / session helpers (SM journal only)
+function inNewsBlackout(d = new Date()) {
+  if (!S.newsOn || !S.newsTimes.length) return false;
+  const now = d.getTime();
+  for (const raw of S.newsTimes) {
+    const t = Date.parse(String(raw).trim().length === 16 ? String(raw).trim() + ':00-05:00' : String(raw).trim());
+    if (!Number.isFinite(t)) continue;
+    if (now >= t - 5 * 60e3 && now <= t + 10 * 60e3) return true;
+  }
+  return false;
+}
+function renderLocalStats() {
+  const journal = STFeat.fromLog(S.log), st = STFeat.allStats(journal), dim = ($('#statdim') && $('#statdim').value) || 'combo';
+  const f = x => x == null ? '—' : x === Infinity ? '∞' : (+x).toFixed(2);
+  const o = st.overall;
+  $('#statoverall').innerHTML = o.n
+    ? `<div class="statg"><div><span>Trades</span><b>${o.n}</b></div><div><span>Win rate</span><b>${(o.winRate * 100).toFixed(0)}%</b></div><div><span>Avg R</span><b>${f(o.avgR)}</b></div><div><span>Expectancy</span><b class="${(o.expectancy || 0) >= 0 ? 'g' : 'r'}">${f(o.expectancy)}R / ${money(o.expectancyUsd || 0)}</b></div><div><span>Profit factor</span><b>${f(o.profitFactor)}</b></div><div><span>Net P&L</span><b class="${o.totalPnl >= 0 ? 'g' : 'r'}">${money(o.totalPnl)}</b></div></div>`
+    : '<span class="note">No closed trades in My Trades yet. Log some results to see stats.</span>';
+  const rows = Object.entries(st[dim] || {}).sort((a, b) => b[1].n - a[1].n);
+  $('#stattable').innerHTML = rows.length
+    ? `<tr><th></th><th>Trades</th><th>Win %</th><th>Avg R</th><th>Expectancy (R / $)</th><th>Profit factor</th></tr>` +
+      rows.map(([k, v]) => `<tr><td>${k}</td><td>${v.n}${v.n < 20 ? ' <small>(small)</small>' : ''}</td><td>${(v.winRate * 100).toFixed(0)}%</td><td>${f(v.avgR)}</td><td class="${(v.expectancy || 0) >= 0 ? 'g' : 'r'}">${f(v.expectancy)}R / ${money(v.expectancyUsd || 0)}</td><td>${f(v.profitFactor)}</td></tr>`).join('')
+    : '';
+}
+function renderSugs() {
+  const journal = STFeat.fromLog(S.log);
+  const list = STFeat.suggestions(journal, { disabled: S.disabled, longCandleMult: S.longCandleMult, longCandleMultBySymbol: S.longCandleMultBySymbol }, S.dismissed);
+  const el = $('#suglist');
+  if (!list.length) { el.innerHTML = '<span class="note">None right now. Suggestions appear after enough of your own logged trades (about 20+ per setup). Nothing is auto-applied.</span>'; }
+  else {
+    el.innerHTML = list.map(x => `<div class="sug"><div>${x.text}</div>
+      <details><summary>Evidence</summary><pre class="ev">${JSON.stringify(x.evidence, (k, v) => typeof v === 'number' ? +(+v).toFixed(3) : v, 2)}</pre></details>
+      <div class="pbtns"><button class="primary sugapply" data-id="${x.id}">Apply</button><button class="ghost sugdismiss" data-id="${x.id}">Dismiss</button></div>
+      ${x.type === 'threshold' ? `<p class="note">Also set the same long-candle multiple in Settings (and in your TradingView Pine input if you use Strat Trader alerts).</p>` : ''}</div>`).join('');
+    el.querySelectorAll('.sugapply').forEach(b => b.onclick = () => {
+      const sug = list.find(s => s.id === b.dataset.id); if (!sug) return;
+      if (!confirm('Apply this change to your Strat Master settings?')) return;
+      const next = STFeat.applySuggestion({ disabled: S.disabled, longCandleMult: S.longCandleMult, longCandleMultBySymbol: S.longCandleMultBySymbol }, sug);
+      S.disabled = next.disabled || []; S.longCandleMultBySymbol = next.longCandleMultBySymbol || {};
+      if (next.longCandleMult != null) S.longCandleMult = next.longCandleMult;
+      save(); toast('Applied'); renderSugs(); renderComboChecks(); scanAll();
+    });
+    el.querySelectorAll('.sugdismiss').forEach(b => b.onclick = () => { S.dismissed.push(b.dataset.id); save(); toast('Dismissed'); renderSugs(); });
+  }
+  const dl = $('#disabledlist');
+  if (!S.disabled.length) dl.innerHTML = '<span class="note">None. When you Apply a “hide this setup” suggestion, it shows here.</span>';
+  else dl.innerHTML = '<ul>' + S.disabled.map((d, i) => `<li>${d.combo} on ${d.symbol} · ${d.timeOfDay} CT <button class="ghost undisable" data-i="${i}">Restore</button></li>`).join('') + '</ul>';
+  dl.querySelectorAll('.undisable').forEach(b => b.onclick = () => { S.disabled.splice(+b.dataset.i, 1); save(); renderSugs(); scanAll(); toast('Restored'); });
+}
+function renderApex() {
+  const A = STFeat.APEX_25K_EOD, p = todayPnl(), used = Math.max(0, -p);
+  $('#apexbox').innerHTML = `<div class="statg">
+    <div><span>Plan</span><b>${A.plan}</b></div><div><span>Start balance</span><b>${money(A.startBalance)}</b></div>
+    <div><span>Profit target</span><b class="g">${money(A.profitTarget)}</b></div><div><span>EOD trailing drawdown</span><b class="r">${money(A.maxDrawdown)}</b></div>
+    <div><span>Apex daily loss</span><b class="r">${money(A.dailyLossLimit)}</b></div><div><span>Your personal stop</span><b class="r">${money(S.daily)}</b></div>
+    <div><span>Max contracts</span><b>${A.maxMinis} minis / ${A.maxMinis * A.microsPerMini} micros</b></div>
+    <div><span>Today (your log)</span><b class="${p >= 0 ? 'g' : 'r'}">${money(p)}</b></div></div>
+    <div class="meter"><i style="width:${Math.min(100, used / S.daily * 100)}%;background:${used / S.daily < .5 ? '#22c55e' : used / S.daily < .85 ? '#f5b942' : '#ef4444'}"></i></div>
+    ${used >= S.daily ? '<b class="r">Your personal $' + S.daily + ' stop is hit — stop trading for today.</b>' : used >= A.dailyLossLimit ? '<b class="r">Past Apex daily loss ($' + A.dailyLossLimit + ') — flatten and stop.</b>' : '<span class="note">Hours: 8:30 AM–2:45 PM CT · Flatten by 2:50 PM CT (Apex hard close 3:59 PM CT).</span>'}
+    <p class="note">${A.note}</p>`;
+}
+function checkFlattenRemind() {
+  if (!S.flattenRemind) return;
+  const { m, wd } = ctMin();
+  if (['Sat', 'Sun'].includes(wd)) return;
+  // 14:50 CT = 890 minutes
+  if (m >= 890 && m < 895) {
+    const k = 'flat-' + ctDay();
+    if (S.seen[k]) return; S.seen[k] = 1; save();
+    toast('Flatten reminder: 2:50 PM CT — close open positions before the Apex hard close.');
+    if (S.sound) beep();
+  }
+}
+function renderComboChecks() {
+  const el = $('#scombos'); if (!el) return;
+  el.innerHTML = Strat.ALL_COMBOS.map(c => `<label class="chk"><input type="checkbox" data-combo="${c}" ${S.combos.includes(c) ? 'checked' : ''}> ${c}</label>`).join('');
+  el.querySelectorAll('input').forEach(inp => inp.onchange = () => {
+    S.combos = [...el.querySelectorAll('input:checked')].map(x => x.dataset.combo);
+    if (!S.combos.length) { toast('Keep at least one setup'); inp.checked = true; S.combos = [inp.dataset.combo]; }
+    save(); scanAll();
+  });
+}
+// Settings bindings for Strat Trader attributes
+renderComboChecks();
+$('#sreqcont').checked = !!S.requireCont; $('#sreqcont').onchange = () => { S.requireCont = $('#sreqcont').checked; save(); scanAll(); };
+$('#slongmult').value = String(S.longCandleMult || 1.5); $('#slongmult').onchange = () => { S.longCandleMult = +$('#slongmult').value; save(); scanAll(); };
+$('#sflatten').checked = S.flattenRemind !== false; $('#sflatten').onchange = () => { S.flattenRemind = $('#sflatten').checked; save(); };
+$('#snewson').checked = !!S.newsOn; $('#snewson').onchange = () => { S.newsOn = $('#snewson').checked; save(); scanAll(); };
+$('#snews').value = (S.newsTimes || []).join(String.fromCharCode(10)); $('#snews').onchange = () => { S.newsTimes = $('#snews').value.split(/[\n\r]+/).map(s => s.trim()).filter(Boolean); save(); };
+if ($('#statdim')) $('#statdim').onchange = renderLocalStats;
+HELP.ststats = 'Stats are built only from trades you save in My Trades. Break them down by setup, contract, timeframe, time of day (CT), continuity strength, or whether the target was the 50% long-candle rule vs full.';
+HELP.stsugs = 'After enough of your own results, the app may suggest hiding a weak setup (combo + contract + time of day) or changing the long-candle threshold. Nothing changes until you tap Apply. You can Restore a hidden setup anytime.';
+HELP.apex = 'Reference limits for an Apex 25K EOD evaluation / PA account. Strat Master never places orders. Keep order routing off anywhere you trade an Apex account. Your personal daily stop (Settings) should stay at or under $300 so you stop before Apex’s $500 daily loss.';
+setInterval(checkFlattenRemind, 30000); checkFlattenRemind();
+
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

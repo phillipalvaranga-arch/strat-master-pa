@@ -30,9 +30,12 @@
 <section id="more" class="tab"><div class="morebtns">
  <button data-go="ai">🤖 AI Analysis (Claude / ChatGPT)<small>Paste their analysis; the app applies it</small></button>
  <button data-go="size">🧮 How many contracts?<small>Size calculator and today's limit</small></button>
- <button data-go="st">🔗 Strat Trader<small>Your TradingView alerts and results</small></button>
- <button data-go="signals">📊 Track record<small>How these trade ideas did lately</small></button>
- <button data-go="settings">⚙️ Settings<small>Alerts, money limit, link</small></button>
+ <button data-go="ststats">📈 Stats<small>Win rate, R, expectancy by setup / hour / continuity</small></button>
+ <button data-go="sugs">💡 Suggestions<small>What to hide or tweak (you apply each one)</small></button>
+ <button data-go="st">🔗 Strat Trader alerts<small>Live TradingView webhook alerts (read-only)</small></button>
+ <button data-go="signals">📊 Track record<small>How these trade ideas did on recent prices</small></button>
+ <button data-go="apex">🛡️ Apex limits<small>25K EOD rules (you place every trade)</small></button>
+ <button data-go="settings">⚙️ Settings<small>Setups, hours, money limit, link</small></button>
  <button id="guideagain">❓ Show the quick guide again<small>4 short screens</small></button></div></section>
 <section id="chart" class="tab">
  <div class="bar"><div class="seg" id="syms"></div><div class="seg" id="tfs"></div><button id="refresh" class="ghost">↻</button></div>
@@ -46,10 +49,34 @@
  <div class="card"><h3>Today's risk</h3><div id="riskbox"></div></div></section>
 <section id="log" class="tab"><div class="card"><h3>Write down a trade you took <button class="help" data-h="log">?</button></h3><form id="lf">
  <div class="row"><label>Contract<select name="sym"><option>MES</option><option>MNQ</option><option>MGC</option></select></label><label>Side<select name="dir"><option>LONG</option><option>SHORT</option></select></label><label>Qty<input name="qty" type="number" value="1" min="1"></label></div>
- <div class="row"><label>Entry<input name="entry" type="number" step="any" required></label><label>Exit<input name="exit" type="number" step="any"></label><label>Fees $<input name="fees" type="number" step="any" value="1.24"></label></div>
- <label>Setup / notes<input name="note" placeholder="e.g. 2-1-2 MES 5m from Strat Master P.A"></label><button class="primary">Save trade</button></form></div>
- <div class="card"><h3>Stats</h3><div id="stats"></div></div><div id="loglist"></div><button id="exportlog" class="ghost">Export CSV</button></section>
-<section id="st" class="tab"><button class="back ghost">‹ Back</button><div id="stconn" class="note"></div><div class="card"><h3>Performance analysis</h3><div id="stana"></div></div><div class="card"><h3>Suggestions to improve</h3><div id="stsug"></div></div><div class="card"><h3>Recent Strat Trader alerts</h3><div id="stalerts"></div></div></section>
+ <div class="row"><label>Setup (combo)<select name="combo"><option value="">—</option><option>2-1-2</option><option>3-1-2</option><option>2-2</option><option>1-2-2</option><option>3-2-2</option></select></label><label>Timeframe<select name="tf"><option>5m</option><option>15m</option><option>30m</option><option>60m</option><option>1d</option></select></label><label>Continuity<select name="cont"><option value="">—</option><option value="3">3/3</option><option value="2">2/3</option><option value="1">1/3</option><option value="0">0/3</option></select></label></div>
+ <div class="row"><label>Entry<input name="entry" type="number" step="any" required></label><label>Stop<input name="stop" type="number" step="any" placeholder="for R calc"></label><label>Exit<input name="exit" type="number" step="any"></label></div>
+ <div class="row"><label>Take profit<input name="target" type="number" step="any"></label><label>Fees $<input name="fees" type="number" step="any" value="1.24"></label><label>Target type<select name="half"><option value="">—</option><option value="0">Full</option><option value="1">50% (long candle)</option></select></label></div>
+ <label>Notes<input name="note" placeholder="e.g. took the break, moved stop"></label><button class="primary">Save trade</button></form>
+ <p class="note">This journal stays in Strat Master P.A on this device. It is separate from Strat Trader.</p></div>
+ <div class="card"><h3>Quick stats</h3><div id="stats"></div></div><div id="loglist"></div><button id="exportlog" class="ghost">Export CSV</button></section>
+<section id="st" class="tab"><button class="back ghost">‹ Back</button>
+<div class="card"><h3>🔗 Strat Trader alerts (read-only)</h3><div id="stconn" class="note"></div>
+<p class="note">Shows alerts your TradingView webhook sent to Strat Trader. Strat Master keeps its own journal under <b>My Trades</b> — nothing here is copied into it.</p></div>
+<div class="card"><h3>Recent alerts from Strat Trader</h3><div id="stalerts"></div></div>
+</section>
+<section id="ststats" class="tab"><button class="back ghost">‹ Back</button>
+<div class="card"><h3>📈 Stats from your Strat Master journal <button class="help" data-h="ststats">?</button></h3>
+<label>Break down by<select id="statdim"><option value="combo">Setup (combo)</option><option value="symbol">Contract</option><option value="timeframe">Timeframe</option><option value="timeOfDay">Time of day (CT)</option><option value="continuity">Continuity strength</option><option value="target">50% target vs full</option></select></label>
+<div id="statoverall"></div><table id="stattable"></table>
+<p class="note">Uses only trades you logged in <b>My Trades</b> on this device.</p></div>
+</section>
+<section id="sugs" class="tab"><button class="back ghost">‹ Back</button>
+<div class="card"><h3>💡 Suggestions <button class="help" data-h="stsugs">?</button></h3>
+<div id="suglist"><span class="note">Suggestions appear after enough of your own logged trades (about 20+ per setup). Nothing is applied until you tap Apply.</span></div>
+</div>
+<div class="card"><h3>Hidden setups</h3><div id="disabledlist" class="note">None. When you Apply a “hide this setup” suggestion, it shows here.</div></div>
+</section>
+<section id="apex" class="tab"><button class="back ghost">‹ Back</button>
+<div class="card"><h3>🛡️ Apex Trader Funding limits <button class="help" data-h="apex">?</button></h3>
+<div id="apexbox"></div>
+<p class="note">Informational only. Strat Master P.A never connects to Apex or Tradovate and cannot place orders. Your personal daily stop in Settings (default $300) is stricter than Apex’s $500 daily loss on the 25K EOD plan.</p></div>
+</section>
 <section id="ai" class="tab"><button class="back ghost">‹ Back</button>
 <div class="card"><h3>🤖 Paste analysis from Claude or ChatGPT <button class="help" data-h="ai">?</button></h3>
  <textarea id="aitxt" rows="9" placeholder="In the Claude or ChatGPT app, copy the analysis (long-press → Copy), then paste it here. Example: MES bearish 15m. Sell stop 6,048.25, stop 6,061, target 6,021.50. Support 6,005. Avoid MGC before 9:30 AM."></textarea>
@@ -67,14 +94,23 @@
  <div class="pbtns"><button id="lreset" class="ghost">Reset learning</button><button id="lundo" class="ghost">Undo reset</button></div>
  <label class="chk"><input id="ssound" type="checkbox" checked> Sound on new signal</label>
  <label class="chk"><input id="snotif" type="checkbox"> Phone/desktop notification</label>
-<h3 style="margin-top:16px">Strat Trader link (read-only)</h3>
+<h3 style="margin-top:16px">Strat setups (same as Strat Trader)</h3>
+ <div id="scombos" class="chkrow"></div>
+ <label class="chk"><input id="sreqcont" type="checkbox"> Require full higher-timeframe continuity (15m / 60m / Daily)</label>
+ <label>Long candle = range greater than <select id="slongmult"><option value="1.3">1.3×</option><option value="1.5" selected>1.5×</option><option value="1.8">1.8×</option><option value="2">2.0×</option><option value="2.5">2.5×</option></select> average → use 50% target</label>
+ <label>Trading hours (CT)<input id="shours" value="08:30–14:45" readonly></label>
+ <label class="chk"><input id="sflatten" type="checkbox" checked> Remind me to flatten by 2:50 PM CT</label>
+ <label>News blackout times (CT, one per line, e.g. 2026-11-06T07:30)<textarea id="snews" rows="3" placeholder="Leave blank if none"></textarea></label>
+ <label class="chk"><input id="snewson" type="checkbox"> Block ideas during news blackout (±5 / +10 min)</label>
+<h3 style="margin-top:16px">Strat Trader alerts link (read-only)</h3>
  <label>Strat Trader URL<input id="sturl" placeholder="https://strat-trader-xxxx.onrender.com"></label>
  <label>Dashboard password (stored only on this device)<input id="stkey" type="password" autocomplete="off"></label>
  <button id="sttest" class="ghost">Connect &amp; test</button>
+ <p class="note">Optional. Lets you see webhook alerts from Strat Trader. Your My Trades journal stays separate.</p>
 <h3 style="margin-top:16px">Chart picture reading (optional AI key)</h3>
  <label>AI service<select id="aiprov"><option value="openai">OpenAI (GPT-4o mini)</option><option value="anthropic">Anthropic (Claude)</option><option value="xai">xAI (Grok)</option></select></label>
  <label>Your API key (saved only on this device)<input id="aikey" type="password" autocomplete="off" placeholder="paste your key here"></label>
  <p class="note">Strat Master P.A never connects to Apex, Topstep, Tradovate or TradingView accounts and cannot place orders. Data is delayed (see Feed pill). Confirm price on your trading platform before entering.</p></div></section>
 </main>
 <div id="toast"></div><div id="modal" class="modal" hidden><div class="mbox"><div id="mtxt"></div><div class="mbtns"><button id="mskip" class="ghost">Skip</button><button id="mnext" class="primary">Next</button></div></div></div>
-<script src="vendor/lwc.js"></script><script src="strat.js"></script><script src="learn.js"></script><script src="ai.js"></script><script src="app.js"></script><script src="paste.js"></script></body></html>
+<script src="vendor/lwc.js"></script><script src="strat.js"></script><script src="stfeat.js"></script><script src="learn.js"></script><script src="ai.js"></script><script src="app.js"></script><script src="paste.js"></script></body></html>
